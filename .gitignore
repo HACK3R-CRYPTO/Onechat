@@ -42,3 +42,13 @@ lib/
 
 # TypeScript
 *.tsbuildinfo
+
+# Documentation/Tracking files (not needed in repo)
+PROGRESS.md
+FIXES_APPLIED.md
+DEPENDENCY_CHECK.md
+VERIFICATION_STATUS.md
+IMPLEMENTATION_COMPLETE.md
+NEXT_STEPS.md
+START_HERE.md
+SETUP_COMPLETE.md
