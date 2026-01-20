@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { WalletConnect } from "@/components/WalletConnect";
 import { X402Payment } from "@/components/X402Payment";
+import { useAgent } from "@/hooks/useAgents";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { AGENT_REGISTRY_ABI, getContractAddresses } from "@/lib/contracts";
 
 interface Agent {
   id: number;
@@ -19,7 +22,9 @@ interface Agent {
 export default function AgentDetail() {
   const params = useParams();
   const agentId = params.id as string;
-  const [agent, setAgent] = useState<Agent | null>(null);
+  const agentIdNum = parseInt(agentId);
+  const { agent: contractAgent, loading: contractLoading } = useAgent(agentIdNum);
+  const [apiAgent, setApiAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [executing, setExecuting] = useState(false);
@@ -37,13 +42,27 @@ export default function AgentDetail() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const response = await fetch(`${apiUrl}/api/agents/${agentId}`);
       const data = await response.json();
-      setAgent(data.agent);
+      setApiAgent(data.agent);
     } catch (error) {
       console.error("Error fetching agent:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Use contract agent if available, otherwise fall back to API
+  const agent = contractAgent
+    ? {
+        id: contractAgent.id,
+        name: contractAgent.name,
+        description: contractAgent.description,
+        price: Number(contractAgent.pricePerExecution) / 1_000_000,
+        reputation: Number(contractAgent.reputation),
+        developer: contractAgent.developer,
+        totalExecutions: Number(contractAgent.totalExecutions),
+        successfulExecutions: Number(contractAgent.successfulExecutions),
+      }
+    : apiAgent;
 
   const handlePaymentComplete = (hash: string) => {
     setPaymentHash(hash);
@@ -108,7 +127,7 @@ export default function AgentDetail() {
     executeAgent(paymentHash);
   };
 
-  if (loading) {
+  if (loading || contractLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading agent...</div>

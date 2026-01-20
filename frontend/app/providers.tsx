@@ -2,13 +2,14 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
-import { cronos, cronosTestnet } from "wagmi/chains";
+import { cronos } from "wagmi/chains";
+import { CRONOS_TESTNET } from "@/lib/contracts";
 import { injected, walletConnect } from "wagmi/connectors";
 
 const queryClient = new QueryClient();
 
 const config = createConfig({
-  chains: [cronosTestnet, cronos],
+  chains: [CRONOS_TESTNET, cronos],
   connectors: [
     injected(),
     walletConnect({
@@ -16,7 +17,7 @@ const config = createConfig({
     }),
   ],
   transports: {
-    [cronosTestnet.id]: http(
+    [CRONOS_TESTNET.id]: http(
       process.env.NEXT_PUBLIC_CRONOS_RPC_URL || "https://evm-t3.cronos.org"
     ),
     [cronos.id]: http("https://evm.cronos.org"),

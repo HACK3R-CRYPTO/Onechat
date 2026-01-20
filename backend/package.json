@@ -9,7 +9,12 @@
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["ai", "agents", "x402", "cronos"],
+  "keywords": [
+    "ai",
+    "agents",
+    "x402",
+    "cronos"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -26,6 +31,7 @@
     "@x402/evm": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "ethers": "^6.16.0",
     "express": "^5.2.1",
     "openai": "^6.16.0"
   }

@@ -1,14 +1,14 @@
 "use client";
 
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { cronosTestnet } from "wagmi/chains";
+import { CRONOS_TESTNET } from "@/lib/contracts";
 
 export function WalletConnect() {
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
 
-  const isCorrectChain = chain?.id === cronosTestnet.id;
+  const isCorrectChain = chain?.id === CRONOS_TESTNET.id;
 
   if (isConnected && address) {
     return (

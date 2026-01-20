@@ -1,12 +1,27 @@
 import { Router, Request, Response } from "express";
 import { verifyPayment, settlePayment, parsePaymentSignature } from "../x402/facilitator";
 import { executeAgent } from "../agent-engine/executor";
+import { getAllAgentsFromContract, getAgentFromContract } from "../lib/contract";
 
 const router = Router();
 
 router.get("/", async (req: Request, res: Response) => {
   try {
-    // TODO: Fetch agents from contract or database
+    // Try to fetch from contract first
+    const contractAgents = await getAllAgentsFromContract();
+    
+    if (contractAgents.length > 0) {
+      const formattedAgents = contractAgents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        price: Number(agent.pricePerExecution) / 1_000_000, // Convert from 6 decimals
+        reputation: Number(agent.reputation),
+      }));
+      return res.json({ agents: formattedAgents });
+    }
+
+    // Fallback to hardcoded agents if contract not deployed
     const agents = [
       {
         id: 1,
@@ -48,7 +63,25 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const agentId = parseInt(req.params.id);
-    // TODO: Fetch agent from contract or database
+    
+    // Try to fetch from contract first
+    const contractAgent = await getAgentFromContract(agentId);
+    if (contractAgent) {
+      return res.json({
+        agent: {
+          id: contractAgent.id,
+          name: contractAgent.name,
+          description: contractAgent.description,
+          price: Number(contractAgent.pricePerExecution) / 1_000_000,
+          reputation: Number(contractAgent.reputation),
+          developer: contractAgent.developer,
+          totalExecutions: Number(contractAgent.totalExecutions),
+          successfulExecutions: Number(contractAgent.successfulExecutions),
+        },
+      });
+    }
+
+    // Fallback to hardcoded agent if contract not deployed
     const agent = {
       id: agentId,
       name: "Smart Contract Analyzer",

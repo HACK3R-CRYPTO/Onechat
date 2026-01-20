@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { WalletConnect } from "@/components/WalletConnect";
+import { useAgents } from "@/hooks/useAgents";
 
 interface Agent {
   id: number;
@@ -12,7 +13,8 @@ interface Agent {
 }
 
 export default function Home() {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const { agents: contractAgents, loading: contractLoading } = useAgents();
+  const [apiAgents, setApiAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export default function Home() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const response = await fetch(`${apiUrl}/api/agents`);
       const data = await response.json();
-      setAgents(data.agents || []);
+      setApiAgents(data.agents || []);
     } catch (error) {
       console.error("Error fetching agents:", error);
     } finally {
@@ -32,7 +34,18 @@ export default function Home() {
     }
   };
 
-  if (loading) {
+  // Use contract agents if available, otherwise fall back to API
+  const agents = contractAgents.length > 0 
+    ? contractAgents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        description: a.description,
+        price: Number(a.pricePerExecution) / 1_000_000, // Convert from 6 decimals
+        reputation: Number(a.reputation),
+      }))
+    : apiAgents;
+
+  if (loading || contractLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading agents...</div>
