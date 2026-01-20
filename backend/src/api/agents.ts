@@ -135,6 +135,17 @@ router.post("/:id/execute", async (req: Request, res: Response) => {
     console.log("Payment header present:", !!paymentHeader, "Payment hash in body:", !!paymentHash);
 
     if (!paymentHash && !paymentHeader) {
+      console.log("No payment provided, ensuring facilitator is initialized...");
+      // Ensure facilitator is initialized before generating payment requirements
+      try {
+        const { initializeFacilitator } = await import("../x402/facilitator");
+        await initializeFacilitator();
+        console.log("Facilitator initialized successfully");
+      } catch (initError) {
+        console.error("Failed to initialize facilitator for payment requirements:", initError);
+        // Continue anyway - generatePaymentRequiredResponse doesn't need facilitator
+      }
+      
       // Return 402 with payment requirements
       const paymentRequired = generatePaymentRequiredResponse({
         url: req.url || "",
