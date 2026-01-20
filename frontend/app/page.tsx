@@ -24,11 +24,18 @@ export default function Home() {
   const fetchAgents = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      console.log("Fetching agents from API:", apiUrl);
       const response = await fetch(`${apiUrl}/api/agents`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
       const data = await response.json();
+      console.log("API response:", data);
       setApiAgents(data.agents || []);
     } catch (error) {
-      console.error("Error fetching agents:", error);
+      console.error("Error fetching agents from API:", error);
+      // Set empty array on error so we don't show loading forever
+      setApiAgents([]);
     } finally {
       setLoading(false);
     }
@@ -44,6 +51,13 @@ export default function Home() {
         reputation: Number(a.reputation),
       }))
     : apiAgents;
+
+  // Debug logging
+  useEffect(() => {
+    console.log("Contract agents:", contractAgents);
+    console.log("API agents:", apiAgents);
+    console.log("Final agents:", agents);
+  }, [contractAgents, apiAgents, agents]);
 
   if (loading || contractLoading) {
     return (

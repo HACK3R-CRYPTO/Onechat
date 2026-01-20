@@ -21,14 +21,21 @@ export function useAgents() {
   const { agentRegistry } = getContractAddresses();
 
   // Get total number of agents
-  const { data: nextAgentId } = useReadContract({
+  const { data: nextAgentId, error: nextAgentIdError } = useReadContract({
     address: agentRegistry as `0x${string}`,
     abi: AGENT_REGISTRY_ABI,
     functionName: "nextAgentId",
     query: {
-      enabled: agentRegistry !== "0x...",
+      enabled: agentRegistry !== "0x..." && agentRegistry !== "0x",
     },
   });
+
+  // Log errors for debugging
+  useEffect(() => {
+    if (nextAgentIdError) {
+      console.error("Error fetching nextAgentId:", nextAgentIdError);
+    }
+  }, [nextAgentIdError]);
 
   // Build contract read requests for all agents
   const agentIds = nextAgentId 
@@ -42,12 +49,19 @@ export function useAgents() {
     args: [BigInt(id)],
   }));
 
-  const { data: agentsData, isLoading } = useReadContracts({
+  const { data: agentsData, isLoading, error: agentsError } = useReadContracts({
     contracts: contractReads,
     query: {
-      enabled: agentRegistry !== "0x..." && agentIds.length > 0,
+      enabled: agentRegistry !== "0x..." && agentRegistry !== "0x" && agentIds.length > 0,
     },
   });
+
+  // Log errors for debugging
+  useEffect(() => {
+    if (agentsError) {
+      console.error("Error fetching agents from contract:", agentsError);
+    }
+  }, [agentsError]);
 
   // Process agents data
   useEffect(() => {
