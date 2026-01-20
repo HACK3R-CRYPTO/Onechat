@@ -76,6 +76,8 @@ async function getResourceServer(): Promise<x402ResourceServer> {
           await resourceServer!.initialize();
           serverInitialized = true;
           debugLog("x402 resource server initialized successfully");
+          debugLog("hasRegisteredScheme", resourceServer!.hasRegisteredScheme(CRONOS_TESTNET, "exact"));
+          debugLog("getSupportedKind", resourceServer!.getSupportedKind(2, CRONOS_TESTNET, "exact"));
         } catch (error) {
           errorLog("Failed to initialize x402 resource server", error);
           throw error;
