@@ -14,18 +14,18 @@ export function WalletConnect() {
     return (
       <div className="flex items-center gap-4">
         <div className="text-sm">
-          <div className="font-medium">
+          <div className="font-medium text-neutral-50">
             {address.slice(0, 6)}...{address.slice(-4)}
           </div>
           {!isCorrectChain && (
-            <div className="text-red-500 text-xs">
+            <div className="text-red-400 text-xs">
               Switch to Cronos Testnet
             </div>
           )}
         </div>
         <button
           onClick={() => disconnect()}
-          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-50 rounded-lg border border-neutral-700 hover:border-neutral-600 transition-colors"
         >
           Disconnect
         </button>
@@ -39,7 +39,7 @@ export function WalletConnect() {
         <button
           key={connector.uid}
           onClick={() => connect({ connector })}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-50 rounded-lg border border-neutral-700 hover:border-neutral-600 transition-colors"
         >
           Connect {connector.name}
         </button>

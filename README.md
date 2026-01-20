@@ -96,15 +96,37 @@ Faucet: https://cronos.org/faucet for TCRO. https://faucet.cronos.org for devUSD
 
 ## Hackathon Tracks
 
-This project qualifies for all four tracks.
+**Selected Tracks (Primary Submission):**
 
-Main Track: x402 Applications. Agent-triggered payments. AI-driven contract interactions.
+### 1. Main Track - x402 Applications
+**Why this track:**
+- **Agent-triggered payments**: Each AI agent execution automatically triggers x402 micropayment
+- **AI-driven contract interactions**: Agents interact with smart contracts (AgentRegistry, AgentEscrow)
+- **Dynamic payment flows**: Pay-per-use model with automatic settlement
+- **Real-world use case**: Marketplace for AI agents with seamless payment experience
 
-Agentic Finance Track: Multi-step agent workflows. Automated settlement pipelines.
+**Key Features:**
+- x402 v1 integration on Cronos testnet
+- Automatic payment verification before agent execution
+- Payment settlement after successful execution
+- Transparent on-chain payment records
 
-Cronos Integration Track: Cronos EVM smart contracts. x402 facilitator integration. Crypto.com Market Data MCP.
+### 2. Agentic Finance Track
+**Why this track:**
+- **Multi-step agent workflows**: Chain multiple agents together for complex tasks
+- **Automated settlement pipelines**: Payments settle automatically based on execution success
+- **Conditional payment logic**: Refunds on failure, settlement on success
+- **Agent composition**: Build complex workflows with multiple agents and single payment
 
-Dev Tooling Track: Agent runtime orchestration. MCP-compatible tools. Developer SDK.
+**Key Features:**
+- Automated payment verification → execution → settlement flow
+- Multi-agent orchestration with payment coordination
+- On-chain reputation system affecting payment trust
+- Escrow-based payment security
+
+**Additional Track Eligibility:**
+- **Cronos Integration Track**: Cronos EVM smart contracts, x402 facilitator integration
+- **Dev Tooling Track**: Agent runtime orchestration, developer SDK potential
 
 ## Built for Hackathon
 

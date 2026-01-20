@@ -31,6 +31,16 @@ export function X402Payment({
     setPaying(true);
 
     try {
+      // CRITICAL: Clear any old payment before creating a new one
+      // This ensures we never reuse an old payment hash
+      if (typeof window !== "undefined") {
+        const oldPayment = sessionStorage.getItem(`payment_${agentId}`);
+        if (oldPayment) {
+          console.log("Clearing old payment before creating new one");
+          sessionStorage.removeItem(`payment_${agentId}`);
+        }
+      }
+
       const { agentEscrow } = getContractAddresses();
       if (agentEscrow === "0x...") {
         onError("Contract not deployed. Please set AGENT_ESCROW_ADDRESS");
@@ -40,6 +50,8 @@ export function X402Payment({
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const resourceUrl = `${apiUrl}/api/agents/${agentId}/execute`;
 
+      console.log("Creating NEW payment - this will generate a unique nonce and hash");
+
       // Step 1: Request payment requirements from backend
       const paymentRequest = await requestPayment(
         priceUsd,
@@ -47,7 +59,7 @@ export function X402Payment({
         resourceUrl
       );
 
-      // Step 2: Sign payment with wallet
+      // Step 2: Sign payment with wallet (generates fresh random nonce each time)
       const { signature, nonce, validAfter, validBefore } = await signPayment(paymentRequest);
 
       // Step 3: Build payment payload using the SAME nonce and timestamps from signing
@@ -58,6 +70,8 @@ export function X402Payment({
         validAfter,
         validBefore
       );
+
+      console.log("New payment created with hash:", paymentHash);
 
       // Store payment header for submission to backend
       if (typeof window !== "undefined") {
@@ -81,14 +95,14 @@ export function X402Payment({
       <button
         onClick={handlePayment}
         disabled={paying || !isConnected}
-        className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-900 disabled:opacity-50 text-neutral-50 py-3 rounded-lg border border-neutral-700 hover:border-neutral-600 disabled:border-neutral-800 disabled:cursor-not-allowed transition-all duration-200 font-medium"
       >
         {paying
           ? "Processing Payment..."
           : `Pay $${priceUsd.toFixed(2)} USDC via x402`}
       </button>
       {!isConnected && (
-        <p className="text-sm text-gray-500 mt-2 text-center">
+        <p className="text-sm text-neutral-500 mt-2 text-center">
           Connect wallet to pay
         </p>
       )}

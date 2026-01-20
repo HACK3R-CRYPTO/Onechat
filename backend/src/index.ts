@@ -1,11 +1,12 @@
+import dotenv from "dotenv";
+// Load environment variables FIRST before any other imports
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import agentsRouter from "./api/agents";
 import executionsRouter from "./api/executions";
 import { initializeFacilitator } from "./x402/facilitator";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

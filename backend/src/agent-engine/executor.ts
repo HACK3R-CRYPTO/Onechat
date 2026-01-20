@@ -98,8 +98,25 @@ export async function executeAgent(
       };
     }
 
-    // Simple output validation
-    const success = output.length > 10 && output.length < 10000;
+    // Output validation - be more lenient with length
+    // Long outputs are valid (e.g., detailed security reports)
+    const isValidLength = output.length > 10 && output.length < 100000; // Increased limit
+    // Only mark as error if it's clearly an error message, not just long content
+    const looksLikeError = output.length < 100 && (
+      output.toLowerCase().startsWith("error") || 
+      output.toLowerCase().startsWith("failed") ||
+      output.toLowerCase().includes("exception:") ||
+      output.toLowerCase().includes("api key")
+    );
+    
+    const success = isValidLength && !looksLikeError;
+
+    if (!success) {
+      console.warn(`[Agent] Output validation failed: length=${output.length}, looksLikeError=${looksLikeError}`);
+      console.warn(`[Agent] Output preview: ${output.substring(0, 200)}...`);
+    } else {
+      console.log(`[Agent] ✅ Output validated: length=${output.length}, success=true`);
+    }
 
     return {
       output,

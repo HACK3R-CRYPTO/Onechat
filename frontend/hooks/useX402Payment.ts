@@ -1,7 +1,7 @@
 "use client";
 
 import { useAccount, useSignTypedData } from "wagmi";
-import { getAddress, toHex } from "viem";
+import { getAddress, toHex, keccak256, toBytes } from "viem";
 import { CRONOS_TESTNET } from "@/lib/contracts";
 
 interface PaymentRequirement {
@@ -87,7 +87,15 @@ export function useX402Payment() {
     // According to Cronos docs: validAfter = 0 (valid immediately)
     const validAfter = BigInt(0);
     const validBefore = BigInt(now + maxTimeoutSeconds);
-    const nonce = toHex(crypto.getRandomValues(new Uint8Array(32)));
+    
+    // CRITICAL: Generate a fresh random nonce each time
+    // This ensures each payment is unique, even with the same agent input
+    // Using crypto.getRandomValues ensures cryptographically secure randomness
+    const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+    const nonce = toHex(nonceBytes);
+    
+    // Log for debugging - verify nonce is unique each time
+    console.log("Generated new payment nonce:", nonce.slice(0, 20) + "...", "at", new Date().toISOString());
 
     // EIP-712 domain per Cronos documentation
     const domain = {
@@ -164,7 +172,24 @@ export function useX402Payment() {
     };
 
     const header = btoa(JSON.stringify(paymentHeader));
-    const hash = `0x${Buffer.from(header).toString("hex").slice(0, 64)}`;
+    
+    // Generate payment hash from the header using keccak256 (same as backend)
+    // The hash is deterministic based on the payment header, which includes:
+    // - Random nonce (generated fresh each time with crypto.getRandomValues - line 90)
+    // - Unique signature (based on nonce, so different each time)
+    // - Timestamp-based validBefore (changes each second)
+    // 
+    // This ensures each payment hash is unique, even with the same agent input,
+    // because the nonce is randomly generated each time signPayment() is called.
+    // 
+    // IMPORTANT: Use the same hash function as backend: keccak256(header)
+    // Backend uses: ethers.keccak256(ethers.toUtf8Bytes(headerString))
+    // We use: keccak256(toBytes(header)) which is equivalent
+    const hash = keccak256(toBytes(header));
+    
+    // Log for debugging - each payment should have a unique hash
+    console.log("Generated payment hash:", hash, "Nonce:", nonce.slice(0, 20) + "...");
+    console.log("Header length:", header.length, "Header preview:", header.slice(0, 50) + "...");
 
     return { header, hash };
   }

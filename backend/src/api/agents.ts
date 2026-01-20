@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import { verifyPayment, settlePayment, generatePaymentRequiredResponse } from "../x402/facilitator";
 import { decodePaymentSignatureHeader } from "@x402/core/http";
 import { executeAgent } from "../agent-engine/executor";
-import { getAllAgentsFromContract, getAgentFromContract } from "../lib/contract";
+import { getAllAgentsFromContract, getAgentFromContract, executeAgentOnContract, verifyExecutionOnContract } from "../lib/contract";
+import { ethers } from "ethers";
 
 const router = Router();
 
@@ -231,12 +232,65 @@ router.post("/:id/execute", async (req: Request, res: Response) => {
     }
     console.log("Payment verified successfully");
 
-    // Execute agent
+    // Convert paymentHash to bytes32 format if it's a hex string
+    let paymentHashBytes32: string;
+    if (paymentHash && paymentHash.startsWith("0x")) {
+      paymentHashBytes32 = paymentHash;
+    } else if (paymentPayload?.hash) {
+      paymentHashBytes32 = paymentPayload.hash;
+    } else {
+      // Generate a hash from the payment header
+      paymentHashBytes32 = ethers.keccak256(ethers.toUtf8Bytes(headerString || ""));
+    }
+
+    // Step 1: Call executeAgent on contract to create execution record and increment totalExecutions
+    // CRITICAL: This must succeed before we run the agent, otherwise metrics won't update
+    console.log("Calling executeAgent on contract...");
+    const contractExecutionId = await executeAgentOnContract(agentId, paymentHashBytes32, input);
+    
+    if (contractExecutionId === null) {
+      console.error("❌ executeAgent() failed on contract - cannot proceed with agent execution");
+      console.error("This usually means: Payment already used, agent not found, or contract error");
+      // Return 402 to trigger payment UI refresh in frontend
+      return res.status(402).json({
+        error: "Payment already used or contract call failed",
+        details: "The payment hash has already been used. Please create a new payment to execute this agent.",
+        paymentRequired: true,
+      });
+    }
+    
+    console.log(`✅ Execution record created on contract with executionId: ${contractExecutionId}`);
+    console.log("📊 totalExecutions has been incremented on-chain");
+    
+    // Step 2: Execute agent with AI (only if contract call succeeded)
     console.log("Executing agent with Gemini...");
     const result = await executeAgent(agentId, input);
     console.log("Agent execution result:", { success: result.success, outputLength: result.output?.length });
 
-    // Settle payment if execution successful
+    // Step 3: Call verifyExecution on contract to update successfulExecutions and reputation
+    // This ALWAYS runs (even if agent execution failed) to update metrics correctly
+    console.log("Calling verifyExecution on contract...");
+    const verified = await verifyExecutionOnContract(
+      contractExecutionId,
+      result.output || "",
+      result.success
+    );
+    
+    if (verified) {
+      if (result.success) {
+        console.log("✅ Execution verified on contract - metrics updated (SUCCESS)!");
+        console.log("📊 successfulExecutions incremented, reputation updated");
+      } else {
+        console.log("✅ Execution verified on contract - metrics updated (FAILURE)!");
+        console.log("📊 successfulExecutions NOT incremented, reputation decreased");
+      }
+    } else {
+      console.error("❌ Failed to verify execution on contract - metrics partially updated!");
+      console.error("⚠️  totalExecutions was incremented, but successfulExecutions/reputation were NOT updated");
+      console.error("This is a critical error - metrics are now inconsistent!");
+    }
+
+    // Step 4: Settle payment if execution successful
     if (result.success) {
       console.log("Settling payment...");
       try {
@@ -251,10 +305,12 @@ router.post("/:id/execute", async (req: Request, res: Response) => {
         console.error("Payment settlement error:", settleError);
         // Don't fail the request if settlement fails, just log it
       }
+    } else {
+      console.log("⚠️  Agent execution failed - payment NOT settled (user should get refund)");
     }
 
     res.json({
-      executionId: Date.now(),
+      executionId: contractExecutionId || Date.now(),
       agentId,
       output: result.output,
       success: result.success,

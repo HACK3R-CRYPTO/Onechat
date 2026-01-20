@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useAgents } from "@/hooks/useAgents";
+import { SplineSceneBasic } from "@/components/ui/spline-demo";
+import TetrisLoading from "@/components/ui/tetris-loader";
 
 interface Agent {
   id: number;
@@ -61,48 +63,82 @@ export default function Home() {
 
   if (loading || contractLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading agents...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <TetrisLoading size="md" speed="normal" loadingText="Loading agents..." />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">AgentMarket</h1>
-            <p className="text-lg text-gray-600">
-              Buy AI agents. Use AI agents. Pay per use. On-chain verification.
-            </p>
+    <div className="min-h-screen bg-black text-neutral-50">
+      {/* Header at the top */}
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-sm border-b border-neutral-800">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400">
+                AgentMarket
+              </h1>
+              <p className="text-sm text-neutral-400 mt-1">
+                AI Agent Marketplace on Cronos
+              </p>
+            </div>
+            <WalletConnect />
           </div>
-          <WalletConnect />
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-6 md:py-8">
+        {/* Hero Section with 3D Spline */}
+        <div className="mb-8 md:mb-12">
+          <SplineSceneBasic />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Section Header */}
+        <div className="mb-6 md:mb-8">
+          <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400 mb-2">
+            Available Agents
+          </h2>
+          <p className="text-sm md:text-base text-neutral-400">
+            Select an agent to execute tasks with AI-powered capabilities
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {agents.map((agent) => (
             <div
               key={agent.id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className="bg-neutral-900 rounded-lg border border-neutral-800 shadow-lg hover:shadow-xl hover:border-neutral-700 transition-all duration-300 p-6 group"
             >
-              <h2 className="text-2xl font-semibold mb-2">{agent.name}</h2>
-              <p className="text-gray-600 mb-4">{agent.description}</p>
-              <div className="flex justify-between items-center">
+              <div className="mb-4">
+                <h3 className="text-xl font-bold text-neutral-50 mb-2 group-hover:text-neutral-100 transition-colors">
+                  {agent.name}
+                </h3>
+                <p className="text-sm text-neutral-400 line-clamp-2">
+                  {agent.description}
+                </p>
+              </div>
+              
+              <div className="flex justify-between items-center mb-4 pb-4 border-b border-neutral-800">
                 <div>
-                  <div className="text-sm text-gray-500">Price</div>
-                  <div className="text-xl font-bold">${agent.price} USDC</div>
+                  <div className="text-xs text-neutral-500 mb-1">Price</div>
+                  <div className="text-lg font-bold text-neutral-50">
+                    ${agent.price}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Reputation</div>
-                  <div className="text-xl font-bold">{agent.reputation}/1000</div>
+                  <div className="text-xs text-neutral-500 mb-1">Reputation</div>
+                  <div className="text-lg font-bold text-neutral-50">
+                    {agent.reputation}/1000
+                  </div>
                 </div>
               </div>
+              
               <a
                 href={`/agents/${agent.id}`}
-                className="mt-4 block w-full text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+                className="block w-full text-center bg-neutral-800 hover:bg-neutral-700 text-neutral-50 py-2.5 rounded-lg font-medium transition-all duration-200 border border-neutral-700 hover:border-neutral-600"
               >
-                View Agent
+                View Agent →
               </a>
             </div>
           ))}
@@ -110,7 +146,7 @@ export default function Home() {
 
         {agents.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No agents available</p>
+            <p className="text-neutral-500">No agents available</p>
           </div>
         )}
       </div>
