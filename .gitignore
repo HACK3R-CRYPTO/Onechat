@@ -16,6 +16,11 @@ out/
 .env
 .env.local
 .env*.local
+# But allow .env.example files
+!.env.example
+!**/.env.example
+!.env.local.example
+!**/.env.local.example
 
 # Logs
 logs
