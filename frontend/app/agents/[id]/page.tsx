@@ -87,24 +87,38 @@ export default function AgentDetail() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      
+      // Get payment header from session storage
+      const paymentHeader = typeof window !== "undefined" 
+        ? sessionStorage.getItem(`payment_${agentIdNum}`)
+        : null;
+      
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      if (paymentHeader) {
+        headers["X-PAYMENT-SIGNATURE"] = paymentHeader;
+        headers["PAYMENT-SIGNATURE"] = paymentHeader;
+      }
+
       const response = await fetch(`${apiUrl}/api/agents/${agentId}/execute`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           input,
           paymentHash: hash,
         }),
       });
 
-      const data = await response.json();
-
       if (response.status === 402) {
-        setPaymentError("Payment verification failed");
+        const paymentData = await response.json();
+        setPaymentError("Payment required. Please complete payment first.");
         setShowPayment(true);
         return;
       }
+
+      const data = await response.json();
 
       if (data.error) {
         setResult(`Error: ${data.error}`);
@@ -199,6 +213,7 @@ export default function AgentDetail() {
           {showPayment ? (
             <X402Payment
               priceUsd={agent.price}
+              agentId={agentIdNum}
               onPaymentComplete={handlePaymentComplete}
               onError={handlePaymentError}
             />

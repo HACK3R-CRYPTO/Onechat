@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { verifyPayment, settlePayment, parsePaymentSignature } from "../x402/facilitator";
+import { verifyPayment, settlePayment, parsePaymentSignature, generatePaymentRequiredResponse } from "../x402/facilitator";
 import { executeAgent } from "../agent-engine/executor";
 import { getAllAgentsFromContract, getAgentFromContract } from "../lib/contract";
 
@@ -109,10 +109,27 @@ router.post("/:id/execute", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Input required" });
     }
 
+    // Get agent details from contract
+    const contractAgent = await getAgentFromContract(agentId);
+    if (!contractAgent) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
+    
+    const agentPrice = Number(contractAgent.pricePerExecution) / 1_000_000; // Convert from 6 decimals to USD
+    const escrowAddress = process.env.AGENT_ESCROW_ADDRESS || "0xE2228Cf8a49Cd23993442E5EE5a39d6180E0d25f";
+
     if (!paymentHash) {
+      // Return 402 with payment requirements
+      const paymentRequired = generatePaymentRequiredResponse({
+        url: req.url || "",
+        description: `Execute agent ${agentId}`,
+        priceUsd: agentPrice,
+        payTo: escrowAddress,
+        testnet: true,
+      });
       return res.status(402).json({
         error: "Payment required",
-        paymentRequired: true,
+        paymentRequired: paymentRequired,
       });
     }
 
@@ -130,10 +147,6 @@ router.post("/:id/execute", async (req: Request, res: Response) => {
         paymentRequired: true,
       });
     }
-
-    // Get agent details (TODO: from contract)
-    const agentPrice = 0.10; // USD
-    const escrowAddress = process.env.AGENT_ESCROW_ADDRESS || "0x...";
 
     // Verify payment
     const verification = await verifyPayment(paymentPayload, {

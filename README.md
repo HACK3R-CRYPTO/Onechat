@@ -68,11 +68,11 @@ Backend: See backend README for setup. Run agent execution server. Configure con
 
 Cronos Testnet:
 
-Agent Registry: Deploy and update address here.
+Agent Registry: 0x0f764437ffBE1fcd0d0d276a164610422710B482
 
-Agent Escrow: Deploy and update address here.
+Agent Escrow: 0xE2228Cf8a49Cd23993442E5EE5a39d6180E0d25f
 
-View contracts on Cronoscan.
+View contracts on Cronoscan: https://testnet.cronoscan.com
 
 ## Network Configuration
 
