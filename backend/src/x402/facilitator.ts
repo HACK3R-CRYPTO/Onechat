@@ -194,7 +194,8 @@ export async function verifyPayment(
 
   try {
     const server = await getResourceServer();
-    const network = expectedDetails.testnet ? CRONOS_TESTNET : CRONOS_MAINNET;
+    // Use facilitator's network format
+    const network = expectedDetails.testnet ? CRONOS_TESTNET_FACILITATOR : CRONOS_MAINNET_FACILITATOR;
 
     const priceAsset = usdToUsdc(expectedDetails.priceUsd, expectedDetails.testnet);
     const paymentOption = buildExactPaymentOption({

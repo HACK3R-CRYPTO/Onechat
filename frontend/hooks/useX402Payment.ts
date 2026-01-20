@@ -50,7 +50,7 @@ export function useX402Payment() {
       accepts: [
         {
           scheme: "exact",
-          network: "eip155:338",
+          network: "cronos-testnet",
           amount,
           payTo: getAddress(payTo),
           asset: getAddress(USDC_CRONOS_TESTNET),
