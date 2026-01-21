@@ -1126,5 +1126,53 @@
     "success": true,
     "timestamp": 1769019664806,
     "verified": false
+  },
+  {
+    "executionId": 381699633,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x4c0d73a6470523c63ac9804c39521dc6ba07196e5ae69866439cb27ae24803cc",
+    "input": "what cAN YOU DO",
+    "output": "As OneChat, a unified AI assistant, I have access to multiple tools and capabilities to help you with a wide range of tasks. I can:\n\n*   **Answer your questions:** Provide information on a vast array of topics, from general knowledge to specific details.\n*   **Analyze data:** Help you understand information and derive insights from it.\n*   **Generate and summarize content:** Create new text, or condense existing information for you.\n*   **Assist with blockchain-related queries:** While I currently don't have real-time access to live blockchain data, I can explain how to check balances, view transactions, or find information using blockchain explorers like Cronos Explorer (https://explorer.cronos.org/testnet).\n*   **Provide recommendations:** Offer suggestions based on your needs or preferences.\n*   **Guide you through processes:** Explain steps for various tasks, like making a cryptocurrency swap.\n\nEssentially, I'm here to provide helpful, accurate, and professional assistance across many domains! What can I help you with today?",
+    "success": true,
+    "timestamp": 1769025599740,
+    "verified": false
+  },
+  {
+    "executionId": 309477649,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x47a3cf197223e8e6af8c8beb0758a0365f1617fc19956aacabef08bfac7c2972",
+    "input": "WHAT IS BTC PRICE RIGHT NOW\n\n[Real Market Data for BTC]:\n{\n  \"symbol\": \"BTC\",\n  \"price\": \"N/A\",\n  \"price24hAgo\": \"N/A\",\n  \"change24h\": \"N/A\",\n  \"volume24h\": \"N/A\",\n  \"high24h\": \"N/A\",\n  \"low24h\": \"N/A\",\n  \"timestamp\": 1769025672076,\n  \"source\": \"Crypto.com Market Data MCP Server\",\n  \"rawData\": {\n    \"type\": \"text\",\n    \"text\": \"Here is the Crypto.com Exchange ticker {\\\"instrument_name\\\":\\\"BTC_USD\\\",\\\"high\\\":\\\"90520.02\\\",\\\"low\\\":\\\"87176.16\\\",\\\"last\\\":\\\"90092.02\\\",\\\"change\\\":\\\"0.0066\\\",\\\"best_bid\\\":\\\"90088.49\\\",\\\"best_bid_size\\\":\\\"0.11818\\\",\\\"best_ask\\\":\\\"90088.50\\\",\\\"best_ask_size\\\":\\\"0.34981\\\",\\\"volume\\\":\\\"19873.4529\\\",\\\"volume_value\\\":\\\"1767336228.44\\\",\\\"open_interest\\\":\\\"0\\\",\\\"timestamp\\\":\\\"1970-01-01T00:00:00Z\\\"}\"\n  }\n}\n",
+    "output": "The current price of Bitcoin (BTC) is **$90,092.02**.",
+    "success": true,
+    "timestamp": 1769025688043,
+    "verified": false
+  },
+  {
+    "executionId": 20727887,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x34ab786cba8bddeac2eaed5965940d9896a4905fce903a677815becd4689148d",
+    "input": "SO GIVE ME MY PORTFOLIO\n\n[Portfolio Data]:\nUser wallet: 0xd2df53D9791e98Db221842Dd085F4144014BBE2a\nToken balances:\n- USDC: 7010000\n",
+    "output": "Here is your portfolio information for the wallet address `0xd2df53D9791e98Db221842Dd085F4144014BBE2a`:\n\n**Token Balances:**\n*   **USDC:** 7,010,000",
+    "success": true,
+    "timestamp": 1769026490982,
+    "verified": false
+  },
+  {
+    "executionId": 1067314831,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x70eeee8b1b6c6cb0db0810de76ca3da1166907a7c3724f5127f081dcd28ebfa0",
+    "input": "show my portfolio\n\n[Portfolio Data]:\nUser wallet: 0xd2df53D9791e98Db221842Dd085F4144014BBE2a\nToken balances:\n- CRO: 56.682331182245779957\n- USDC: 7010000\n",
+    "output": "Here is your portfolio based on the real-time data:\n\n**Wallet Address:** `0xd2df53D9791e98Db221842Dd085F4144014BBE2a`\n\n**Token Balances:**\n*   **CRO:** 56.682331182245779957\n*   **USDC:** 7010000",
+    "success": true,
+    "timestamp": 1769027585294,
+    "verified": false
   }
 ]
