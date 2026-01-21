@@ -9,6 +9,10 @@ import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { AGENT_REGISTRY_ABI, getContractAddresses } from "@/lib/contracts";
 import TetrisLoading from "@/components/ui/tetris-loader";
+import ReactMarkdown from "react-markdown";
+import { ChatBubble, ChatBubbleMessage, ChatBubbleAvatar } from "@/components/ui/chat-bubble";
+import { Bot } from "lucide-react";
+import { AIInput } from "@/components/ui/ai-input";
 
 interface Agent {
   id: number;
@@ -285,7 +289,7 @@ export default function AgentDetail() {
               <div className="h-6 w-px bg-neutral-700"></div>
               <div>
                 <h1 className="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400">
-                  AgentMarket
+                  OneChat
                 </h1>
               </div>
             </div>
@@ -340,69 +344,153 @@ export default function AgentDetail() {
           </div>
         </div>
 
-        <div className="bg-neutral-900 rounded-lg border border-neutral-800 shadow-lg p-6 md:p-8">
-          <h2 className="text-2xl font-bold mb-4 text-neutral-50">Execute Agent</h2>
-          
-          {/* Disclaimer */}
-          <div className="mb-6 p-4 bg-blue-900/20 border border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-300 flex items-start gap-2">
-              <span className="text-blue-400 mt-0.5">ℹ️</span>
-              <span>
-                <strong>Note:</strong> This agent uses AI (Google Gemini) to analyze and generate text based on your input. 
-                Results are AI-generated and should be verified for accuracy. The agent cannot access external systems, 
-                perform real-world actions, or guarantee specific outcomes.
-              </span>
+        {/* Execute Agent Section */}
+        <div className="bg-neutral-900 rounded-lg border border-neutral-800 shadow-lg overflow-hidden">
+          {/* Header */}
+          <div className="px-6 md:px-8 pt-6 md:pt-8 pb-4 border-b border-neutral-800">
+            <h2 className="text-2xl font-bold text-neutral-50">Execute Agent</h2>
+            <p className="text-sm text-neutral-400 mt-1">
+              Provide input and execute this agent for ${agent.price} USDC per execution
             </p>
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-neutral-300">
+          {/* Disclaimer */}
+          <div className="px-6 md:px-8 pt-6 pb-4">
+            <div className="p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+              <p className="text-sm text-blue-300 flex items-start gap-2">
+                <span className="text-blue-400 mt-0.5 flex-shrink-0">ℹ️</span>
+                <span>
+                  <strong className="text-blue-200">Note:</strong> This agent uses AI (Google Gemini) to analyze and generate text based on your input. 
+                  Results are AI-generated and should be verified for accuracy. The agent cannot access external systems, 
+                  perform real-world actions, or guarantee specific outcomes.
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Input Section */}
+          <div className="px-6 md:px-8 py-6 border-b border-neutral-800">
+            <label className="block text-sm font-medium mb-3 text-neutral-300">
               Input
             </label>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              className="w-full p-4 bg-neutral-800 border border-neutral-700 rounded-lg focus:ring-2 focus:ring-neutral-600 focus:border-neutral-600 text-neutral-50 placeholder-neutral-500 transition-colors"
-              rows={6}
-              placeholder="Enter your input here... (e.g., 'Create a tweet about DeFi', 'Analyze this smart contract', etc.)"
-            />
-          </div>
-          {showPayment ? (
-            <X402Payment
-              priceUsd={agent.price}
-              agentId={agentIdNum}
-              onPaymentComplete={handlePaymentComplete}
-              onError={handlePaymentError}
-            />
-          ) : (
-            <button
-              onClick={handleExecute}
-              disabled={executing || !input.trim()}
-              className="w-full bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-900 disabled:opacity-50 text-neutral-50 py-3 rounded-lg font-medium border border-neutral-700 hover:border-neutral-600 disabled:border-neutral-800 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {executing
-                ? "Executing Agent..."
-                : paymentHash
-                  ? `Execute Agent ($${agent.price} USDC)`
-                  : `Pay & Execute ($${agent.price} USDC)`}
-            </button>
-          )}
-
-          {paymentError && (
-            <div className="mt-4 p-4 bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-lg text-sm">
-              <strong className="text-red-400">Error:</strong> <span className="text-neutral-400">{paymentError}</span>
+            <div className="bg-neutral-800/30 rounded-xl p-2 border border-neutral-800/50 focus-within:border-neutral-700 transition-colors">
+              <AIInput
+                placeholder="Enter your input here... (e.g., 'Create a tweet about DeFi', 'Analyze this smart contract', etc.)"
+                onVoiceInput={(text) => {
+                  setInput(text);
+                }}
+                value={input}
+                onChange={(value) => setInput(value)}
+                disabled={executing}
+                minHeight={120}
+                maxHeight={300}
+                className="py-2"
+              />
             </div>
-          )}
+            <p className="text-xs text-neutral-500 mt-2">
+              Use voice input or type your message. Press Enter to submit (Shift+Enter for new line).
+            </p>
+          </div>
 
+          {/* Payment/Execute Section */}
+          <div className="px-6 md:px-8 py-6">
+            {showPayment ? (
+              <div>
+                <X402Payment
+                  priceUsd={agent.price}
+                  agentId={agentIdNum}
+                  onPaymentComplete={handlePaymentComplete}
+                  onError={handlePaymentError}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={handleExecute}
+                disabled={executing || !input.trim()}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:from-neutral-800 disabled:to-neutral-800 disabled:opacity-50 text-white py-4 rounded-xl font-semibold transition-all duration-200 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+              >
+                {executing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Executing Agent...</span>
+                  </>
+                ) : paymentHash ? (
+                  `Execute Agent ($${agent.price} USDC)`
+                ) : (
+                  `Pay & Execute ($${agent.price} USDC)`
+                )}
+              </button>
+            )}
+
+            {paymentError && (
+              <div className="mt-4 p-4 bg-red-900/20 border border-red-800/50 text-red-300 rounded-lg text-sm">
+                <strong className="text-red-400">Error:</strong> <span className="text-red-300/80">{paymentError}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Result Section */}
           {result && (
-            <div className="mt-6 p-5 bg-neutral-800 rounded-lg border border-neutral-700">
-              <h3 className="font-semibold mb-3 text-neutral-50 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Result:
-              </h3>
-              <pre className="whitespace-pre-wrap text-sm text-neutral-300 leading-relaxed">
-                {result}
-              </pre>
+            <div className="px-6 md:px-8 py-6 border-t border-neutral-800 bg-neutral-900/50">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-neutral-300 mb-1">Execution Result</h3>
+                <p className="text-xs text-neutral-500">Generated by {agent.name}</p>
+              </div>
+              <ChatBubble variant="received">
+                <div className="h-8 w-8 rounded-full bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-4 w-4 text-blue-400" />
+                </div>
+                <ChatBubbleMessage variant="received">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-xs text-neutral-400 font-semibold">Result</span>
+                  </div>
+                  <div className="text-sm leading-relaxed prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0 text-neutral-200">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-neutral-100">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-neutral-300">{children}</em>,
+                        code: ({ children, className }) => {
+                          const isInline = !className;
+                          return isInline ? (
+                            <code className="bg-neutral-800/70 px-1.5 py-0.5 rounded text-xs font-mono text-blue-300 border border-neutral-700">
+                              {children}
+                            </code>
+                          ) : (
+                            <code className="block bg-neutral-800/70 p-3 rounded-lg text-xs font-mono text-blue-300 overflow-x-auto border border-neutral-700">
+                              {children}
+                            </code>
+                          );
+                        },
+                        a: ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300 underline"
+                          >
+                            {children}
+                          </a>
+                        ),
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-neutral-200">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-neutral-200">{children}</ol>,
+                        li: ({ children }) => <li className="text-inherit">{children}</li>,
+                        h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-neutral-100">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-neutral-100">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-sm font-bold mb-2 text-neutral-200">{children}</h3>,
+                        blockquote: ({ children }) => (
+                          <blockquote className="border-l-4 border-blue-500/50 pl-4 italic text-neutral-300 bg-neutral-800/30 py-2 rounded-r">
+                            {children}
+                          </blockquote>
+                        ),
+                      }}
+                    >
+                      {result}
+                    </ReactMarkdown>
+                  </div>
+                </ChatBubbleMessage>
+              </ChatBubble>
             </div>
           )}
         </div>

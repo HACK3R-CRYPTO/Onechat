@@ -390,7 +390,7 @@ export function VVSSwap() {
               <div className="p-4 bg-white/10 border border-white/20 rounded-lg">
                 <p className="text-sm text-gray-300 mb-2">Transaction Hash:</p>
                 <a
-                  href={`https://testnet.cronoscan.com/tx/${txHash}`}
+                  href={`https://explorer.cronos.org/testnet/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-400 hover:underline break-all"

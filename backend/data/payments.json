@@ -498,5 +498,455 @@
     "status": "settled",
     "timestamp": 1768985163941,
     "executionId": 8
+  },
+  {
+    "paymentHash": "0xc92efe63b9ac7a93781e25691dba60843600ca1ba982065c58167fedf97c63b9",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "refunded",
+    "timestamp": 1768990885932,
+    "executionId": 11
+  },
+  {
+    "paymentHash": "0xc2e5248d27629e390b8410dc60f3c700c7b00154898087df736fe472ccf45a47",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1768991008898,
+    "executionId": 12
+  },
+  {
+    "paymentHash": "0xae11a7ea757b3f240bb346f36dbb93daa9f1852059b006ff1ddce98caa991293",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1768991302856,
+    "executionId": 13
+  },
+  {
+    "paymentHash": "0x5c91cddefa4d1f7cf5cc0f76c9b09d930452fc46d7a410f87d53f862c005c07d",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1768991901676,
+    "executionId": 14
+  },
+  {
+    "paymentHash": "0xc55a6d9f255dd56ea6dfb84ff6d2baf474f4c79c17ff7f0afd87a8f8dcfa493a",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1768992349089,
+    "executionId": 15
+  },
+  {
+    "paymentHash": "0xc3d252df4debf65330a1e7b826bc5424ca5b012a7e2ece4563f0991818e1e622",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1768992694261,
+    "executionId": 16
+  },
+  {
+    "paymentHash": "0x119e3c3ab75822c0a65bb20f458911534c911c2b5492029f283bb0626d8ed7a5",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769004555346,
+    "executionId": 17
+  },
+  {
+    "paymentHash": "0x3833394cdc71b6e700225a63a9d663206bc6d10ff7daceac91246923ec0b0283",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769004757225,
+    "executionId": 18
+  },
+  {
+    "paymentHash": "0xd57becb92c92ed303e01c2a648f0eb49779feb3dbd7febcbe54cdc3de02b583f",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769004985696,
+    "executionId": 19
+  },
+  {
+    "paymentHash": "0x8a3596c13e9a916288a70407a83ac0b7a128ba2d802943fae1c5c2f0cb55b426",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769005357780,
+    "executionId": 20
+  },
+  {
+    "paymentHash": "0x366348eb272980c9fee368de0079d68b2803586e7fef879dd10be52e4972f287",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769006136953,
+    "executionId": 21
+  },
+  {
+    "paymentHash": "0x9a6c5ef13d789b42e65e8a99221132b026b79a8c5a85478c76ea28a43c220bec",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769006308955,
+    "executionId": 22
+  },
+  {
+    "paymentHash": "0xd3d319b85a49127fc4bc953a604176b2e0fd7ea1b62a769a5a650581d05a973c",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0x3210607AC8126770E850957cE7373ee7e59e3A29",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769008744186,
+    "executionId": 23
+  },
+  {
+    "paymentHash": "0xacbdf6d11bf11d9de364c478a8d7b8435a63e6e8f1b328b9b53a3108b448ba92",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0x3210607AC8126770E850957cE7373ee7e59e3A29",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769008954325,
+    "executionId": 24
+  },
+  {
+    "paymentHash": "0x7fb12286fca71402a69b96917ca0755eaa5a0f2fe92f9f88240f947a28892a4c",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009037648,
+    "executionId": 25
+  },
+  {
+    "paymentHash": "0x31805c2b1f11a04ff08824da4a5b0ba75d3aaa5cdc3cfb7ef3316fb51650c8b2",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009161498,
+    "executionId": 26
+  },
+  {
+    "paymentHash": "0xdec77a5531ca9de113a22f9de3420edbe019947ee812479d7489c6ff4b3aa81b",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009310698,
+    "executionId": 27
+  },
+  {
+    "paymentHash": "0xb98c072580e9c7883c106ba4c99f8f8257aa7b3a18ea66a0f27e45e63597e9bf",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009492374,
+    "executionId": 28
+  },
+  {
+    "paymentHash": "0x9a4df7dd338d3e4c9529eb2804f706cd0ed297341eee10fa6b73c642ca06c7f8",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009813620,
+    "executionId": 29
+  },
+  {
+    "paymentHash": "0x4955f134d66af7a0ee437dbfb63aeec096470149eeedb883d621852b45c017db",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009890967,
+    "executionId": 30
+  },
+  {
+    "paymentHash": "0xaf2791922e36497e5676768862932c8f066c0a70f6035b5e5cd0b609516ffd8b",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769009979472,
+    "executionId": 31
+  },
+  {
+    "paymentHash": "0xb052d9b0ed426e9966e4ce177b7549a16adde790b33a93bf38c97d0fb6258e7a",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769010058666,
+    "executionId": 32
+  },
+  {
+    "paymentHash": "0xda443093688d4994778da5c519cdefbe8503dca9170592f727573dd816a1a1cd",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769011088290,
+    "executionId": 33
+  },
+  {
+    "paymentHash": "0x1e9a1821eb9d9fa8ad84decc0ba210c0c4e585a73d8fb4534d4c5435c482464c",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769011205447,
+    "executionId": 34
+  },
+  {
+    "paymentHash": "0x1959ebd43de6e66b6a1ee56c5935153144895aea24bfd1bdc142a67ca4177027",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769014953967,
+    "executionId": 1115976434
+  },
+  {
+    "paymentHash": "0x34f6851a4551d5ab9b51d74c9c40e55c2b2fe343d76cfef5451e7d7013fb2e8e",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769015281648,
+    "executionId": 1598467252
+  },
+  {
+    "paymentHash": "0x2c4dcf13de78dd0c0d450e715f4066e0ae493e9c69d96b27c466ffdb379c3759",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769015600458,
+    "executionId": 1460537556
+  },
+  {
+    "paymentHash": "0x00cb29c29789e525e6616fdb07243b5a3b16164bab53201eb42432f4e4492754",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769016275859,
+    "executionId": 756658390
+  },
+  {
+    "paymentHash": "0xe5240e8fd0ef874b90b04da7fbbda1f8cff270c8f5e612bfee7ffee9b88eb145",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769016850599,
+    "executionId": 305007448
+  },
+  {
+    "paymentHash": "0x33e7b1f5558457d579639b7c7650f17b3b2d5b33550db5220045153c74f1e6b5",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769016937921,
+    "executionId": 1628336742
+  },
+  {
+    "paymentHash": "0x4c61f04ed999f4a056a9386c87c16a5a1df3292f7410b2d526d3696c5e586306",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769016966504,
+    "executionId": 2039401004
+  },
+  {
+    "paymentHash": "0x53126268f1c9f228f95d91068369496bda0a16a69a7127fc67f39e73bf078bca",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769017047882,
+    "executionId": 18575657
+  },
+  {
+    "paymentHash": "0x4cc2ce50b0b1afb500ea51cd12764efd7a2af6686e80b7762c18e51e21e5d39a",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769017174439,
+    "executionId": 2062649494
+  },
+  {
+    "paymentHash": "0x24323835df2c6852dc64ed5475a74be744203cf4c6a9a45fc2a8b6cc86f0eb86",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769017443056,
+    "executionId": 1387946192
+  },
+  {
+    "paymentHash": "0xeef2051b8cb4d8913175286bc84354050de8483f82639dcfa2b6d9b7fb1a98cf",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769017533928,
+    "executionId": 496530038
+  },
+  {
+    "paymentHash": "0xca8e5408f10fb7d270caf620573176c4c43b1eee848a5c8b7fff18b85ff0f028",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769017673249,
+    "executionId": 2036130999
+  },
+  {
+    "paymentHash": "0x87245e9015172b9f03254451a9cf964b01f7cd72e4d0f5617391c936a79e8125",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769018193966,
+    "executionId": 928445169
+  },
+  {
+    "paymentHash": "0x61285f7ee99c7b42f299c8266bb2e948149a11ef59a34b301121653fb71e077b",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769018413988,
+    "executionId": 296416053
+  },
+  {
+    "paymentHash": "0x96976a56d108f0e6db7e6d10469719de3a2c0227f063ea1863eddbd889e7c3db",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769018480997,
+    "executionId": 1193775955
+  },
+  {
+    "paymentHash": "0xcc747574d429675586b77870c7a50242b9704548439676b5583cfb0026a79124",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769018826089,
+    "executionId": 2105098551
+  },
+  {
+    "paymentHash": "0x894ce285afa261427975c4d0a8d113d05c5b2ffcf32e50c0561f4e40f4a3bbba",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769018895297,
+    "executionId": 979346771
+  },
+  {
+    "paymentHash": "0x08ebef84772fc5f0cc384cbd4bb4e5ba77df5708ef7d72de9748150d1c8d517c",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769019292509,
+    "executionId": 993937974
+  },
+  {
+    "paymentHash": "0x09267c300a3c501c5c6f3a8537aad69c6acc32255cc7f5f1bd0719e07a356cb4",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769019412803,
+    "executionId": 1000919082
+  },
+  {
+    "paymentHash": "0xf8bb2068e2232cb1e9a1e7e06f86f0683957e162c948d0130a84e98c7b0b580a",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769019572341,
+    "executionId": 728319656
+  },
+  {
+    "paymentHash": "0x862857e2bc027dc0e15f17bb9a6825b3d10c48b701b49964230ff2b947316e12",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769019663060,
+    "executionId": 955572453
   }
 ]

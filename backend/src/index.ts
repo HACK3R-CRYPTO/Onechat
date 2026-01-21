@@ -52,7 +52,7 @@ async function startServer() {
   }
 
   app.listen(PORT, () => {
-    console.log(`AgentMarket backend running on port ${PORT}`);
+    console.log(`OneChat backend running on port ${PORT}`);
     console.log(`API available at http://localhost:${PORT}/api/agents`);
   });
 }

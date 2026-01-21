@@ -91,6 +91,7 @@ export const db = {
   getExecutions(filters?: {
     agentId?: number;
     userId?: string;
+    paymentHash?: string;
     startTime?: number;
     endTime?: number;
     success?: boolean;
@@ -103,6 +104,9 @@ export const db = {
       }
       if (filters.userId) {
         executions = executions.filter((e) => e.userId.toLowerCase() === filters.userId!.toLowerCase());
+      }
+      if (filters.paymentHash) {
+        executions = executions.filter((e) => e.paymentHash.toLowerCase() === filters.paymentHash!.toLowerCase());
       }
       if (filters.startTime) {
         executions = executions.filter((e) => e.timestamp >= filters.startTime!);
@@ -137,6 +141,7 @@ export const db = {
   getPayments(filters?: {
     agentId?: number;
     userId?: string;
+    paymentHash?: string;
     status?: PaymentLog["status"];
     startTime?: number;
     endTime?: number;
@@ -149,6 +154,9 @@ export const db = {
       }
       if (filters.userId) {
         payments = payments.filter((p) => p.userId.toLowerCase() === filters.userId!.toLowerCase());
+      }
+      if (filters.paymentHash) {
+        payments = payments.filter((p) => p.paymentHash.toLowerCase() === filters.paymentHash!.toLowerCase());
       }
       if (filters.status) {
         payments = payments.filter((p) => p.status === filters.status);

@@ -135,7 +135,7 @@ export default function DashboardPage() {
                 href="/"
                 className="text-sm text-neutral-400 hover:text-neutral-50 transition-colors"
               >
-                Marketplace
+                Dashboard
               </Link>
               <WalletConnect />
             </div>

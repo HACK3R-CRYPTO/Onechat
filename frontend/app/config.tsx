@@ -26,8 +26,8 @@ export const cronosTestnet = defineChain({
   },
   blockExplorers: {
     default: {
-      name: 'Cronoscan Testnet',
-      url: 'https://testnet.cronoscan.com',
+      name: 'Cronos Explorer Testnet',
+      url: 'https://explorer.cronos.org/testnet',
     },
   },
   testnet: true,
@@ -53,8 +53,8 @@ export const cronosMainnet = defineChain({
   },
   blockExplorers: {
     default: {
-      name: 'Cronoscan',
-      url: 'https://cronoscan.com',
+      name: 'Cronos Explorer',
+      url: 'https://explorer.cronos.org',
     },
   },
   testnet: false,

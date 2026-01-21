@@ -40,6 +40,39 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
 
     const agentPrice = Number(contractAgent.pricePerExecution) / 1_000_000;
     const escrowAddress = process.env.AGENT_ESCROW_ADDRESS || "0x4352F2319c0476607F5E1cC9FDd568246074dF14";
+    
+    // For unified chat: Get platform fee recipient from escrow contract or env var
+    // Unified chat payments should go directly to platform treasury, not to any agent developer
+    let platformFeeRecipient: string | null = null;
+    
+    // Try environment variable first
+    if (process.env.PLATFORM_FEE_RECIPIENT) {
+      platformFeeRecipient = process.env.PLATFORM_FEE_RECIPIENT;
+      console.log(`[Chat] Using platform fee recipient from env: ${platformFeeRecipient}`);
+    } else {
+      // Try reading from escrow contract
+      // Note: platformFeeRecipient is a public immutable variable, accessed as a property (not a function)
+      try {
+        const { getAgentEscrow } = require("../lib/contract");
+        const escrowContract = getAgentEscrow();
+        if (escrowContract) {
+          // Public variables in Solidity are accessed without parentheses in ethers.js
+          platformFeeRecipient = await escrowContract.platformFeeRecipient;
+          console.log(`[Chat] Platform fee recipient from escrow contract: ${platformFeeRecipient}`);
+        }
+      } catch (error) {
+        console.warn(`[Chat] Could not read platform fee recipient from escrow:`, error);
+      }
+    }
+    
+    // Use platform fee recipient for unified chat, fallback to escrow if not available
+    // This ensures unified chat revenue goes to platform, not to contract creator/agent developer
+    const unifiedChatPayTo = platformFeeRecipient || escrowAddress;
+    if (platformFeeRecipient) {
+      console.log(`[Chat] ✅ Unified chat payments will go to platform fee recipient: ${unifiedChatPayTo}`);
+    } else {
+      console.warn(`[Chat] ⚠️  No platform fee recipient found, using escrow address: ${unifiedChatPayTo}`);
+    }
 
     // Check for payment
     const paymentHeader = req.headers["x-payment"] || 
@@ -51,7 +84,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
         url: req.url || "",
         description: `Chat message`,
         priceUsd: agentPrice,
-        payTo: escrowAddress,
+        payTo: unifiedChatPayTo, // Use platform fee recipient for unified chat
         testnet: true,
       });
       return res.status(402).json({
@@ -87,7 +120,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     try {
       verification = await verifyPayment(paymentPayload, {
         priceUsd: agentPrice,
-        payTo: escrowAddress,
+        payTo: unifiedChatPayTo, // Use platform fee recipient for unified chat
         testnet: true,
       }, paymentHeaderValue);
     } catch (verifyError) {
@@ -114,19 +147,56 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
       paymentHashBytes32 = ethers.keccak256(ethers.toUtf8Bytes(paymentHeaderValue || ""));
     }
 
+    // Check if payment hash has already been used (prevent double-spending for unified chat)
+    // Since we skip contract execution for unified chat, we need to check database
+    // Also check if payment was used in previous executions (before we removed contract execution)
+    const existingPayment = db.getPayments({ paymentHash: paymentHashBytes32 });
+    const existingExecution = db.getExecutions({ paymentHash: paymentHashBytes32 });
+    
+    if (existingPayment.length > 0 && existingPayment[0].status !== "failed" && existingPayment[0].status !== "refunded") {
+      console.warn(`[Chat] ⚠️ Payment hash ${paymentHashBytes32} has already been used (found in payments)`);
+      return res.status(402).json({
+        error: "Payment already used",
+        details: "This payment has already been used. Please create a new payment to continue.",
+        paymentRequired: true,
+      });
+    }
+    
+    if (existingExecution && existingExecution.length > 0) {
+      console.warn(`[Chat] ⚠️ Payment hash ${paymentHashBytes32} has already been used (found in executions)`);
+      return res.status(402).json({
+        error: "Payment already used",
+        details: "This payment has already been used in a previous execution. Please create a new payment to continue.",
+        paymentRequired: true,
+      });
+    }
+
     // Analyze user input to determine what tools/capabilities are needed
     const inputLower = input.toLowerCase();
     
     // Detect intent
     const needsMarketData = /(?:price|price of|current price|what's the price|how much is|trading at|market|volume|bitcoin|btc|ethereum|eth|crypto)/i.test(input);
-    const needsBlockchain = /(?:balance|transaction|block|address|contract|on-chain|blockchain|wallet|0x[a-fA-F0-9]{40})/i.test(input);
+    const needsBlockchain = /(?:balance|transaction|block|address|contract|on-chain|blockchain|wallet|wrap|wrapping|ticker|tickers|exchange|defi|farm|protocol|cronosid|0x[a-fA-F0-9]{40})/i.test(input);
     // Detect swap requests: "swap 1 CRO for USDC", "exchange 100 CRO to USDC", etc.
     const needsSwap = /(?:swap|exchange|trade|convert|vvs|dex)\s+\d+.*?(?:for|to|into)/i.test(input);
+    // Detect transfer requests: "transfer 5 CRO to 0x...", "send 100 USDC to 0x...", "send 10 CRO 0x..." (without "to")
+    const needsTransfer = /(?:transfer|send)\s+\d+(?:\.\d+)?\s+(?:\w+\s+)*(?:to\s+)?0x[a-fA-F0-9]{40}/i.test(input);
+    // Detect portfolio queries: "portfolio", "my tokens", "my balances", "show my wallet"
+    const needsPortfolio = /(?:portfolio|my tokens|my balances|show my wallet|wallet balance|all my tokens|token holdings)/i.test(input);
+    // Detect transaction history queries: "my transactions", "transaction history", "recent transactions"
+    const needsHistory = /(?:my transactions|transaction history|recent transactions|tx history|last transactions|show my tx)/i.test(input);
+    
     let swapTransactionData: { to: string; data: string; value?: string } | null = null;
     let swapQuoteInfo: { amountIn: string; tokenIn: string; tokenOut: string; expectedAmountOut: string; network: string } | null = null;
+    let transferMagicLink: { url: string; amount: string; token: string; to: string; type: string } | null = null;
+    let portfolioData: { address: string; balances: Array<{ symbol: string; balance: string; contractAddress?: string }> } | null = null;
+    let transactionHistory: { address: string; transactions: Array<{ hash: string; from: string; to: string; value: string; timestamp: number; blockNumber: number }> } | null = null;
     
     if (needsSwap) {
       console.log(`[Chat] 💱 Swap request detected in input: "${input}"`);
+    }
+    if (needsTransfer) {
+      console.log(`[Chat] 💸 Transfer request detected in input: "${input}"`);
     }
     const needsContractAnalysis = /(?:contract|solidity|pragma|function|analyze|audit|vulnerability|security|bug)/i.test(input);
     const needsContent = /(?:create|generate|write|tweet|post|content|marketing|copy)/i.test(input);
@@ -197,54 +267,199 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
 
     // Fetch blockchain data if needed
     if (needsBlockchain) {
-      // If query doesn't have an address, try to use payer's address for balance queries
-      if (input.toLowerCase().includes("balance") && !input.toLowerCase().includes("0x") && verification.payerAddress) {
-        console.log(`[Chat] ℹ️ No address in balance query, using payer's address: ${verification.payerAddress}`);
-        enhancedInput = `${input} for address ${verification.payerAddress}`;
-      }
-      const blockchainClient = createCryptoComClient();
-      if (blockchainClient) {
-        console.log(`[Chat] 🔗 Detected blockchain query, using Crypto.com AI Agent SDK...`);
-        console.log(`[Chat] 📡 SDK Status: ACTIVE - Querying Cronos blockchain via Crypto.com AI Agent SDK`);
+      // Exchange, Defi, and CronosID queries are handled by AI Agent SDK
+      // AI Agent SDK internally uses Developer Platform SDK and provides better formatting
+      // Token wrap queries still use Developer Platform SDK directly (not supported by AI Agent SDK)
+      const inputLower = input.toLowerCase();
+      let directSDKResult: string | null = null;
+      
+      // Token wrap queries - must use Developer Platform SDK (not supported by AI Agent SDK)
+      if (inputLower.includes('wrap') && (inputLower.includes('cro') || inputLower.includes('token'))) {
+        console.log(`[Chat] 📦 Token wrap query detected - routing directly to Developer Platform SDK...`);
         try {
-          // Use enhancedInput which may include payer's address
-          const blockchainQuery = enhancedInput.includes("for address") ? enhancedInput : input;
-          const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
-          if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
-            realDataContext += `\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\n${blockchainResult}\n`;
-            console.log(`[Chat] ✅ Blockchain data fetched successfully via Crypto.com AI Agent SDK`);
-            console.log(`[Chat] 📊 SDK Result: ${blockchainResult.substring(0, 100)}...`);
-          } else {
-            console.warn(`[Chat] ⚠️ SDK returned error or unavailable: ${blockchainResult}`);
-            // Check if it's a 403 error from Explorer API - this means we should try RPC fallback
-            if (blockchainResult && (blockchainResult.includes("403") || blockchainResult.includes("Forbidden") || blockchainResult.includes("status code 403"))) {
-              console.log(`[Chat] 🔄 AI Agent SDK got 403 from Explorer API, trying RPC fallback for block queries...`);
-              // For block queries, try RPC directly
-              if (blockchainQuery.toLowerCase().includes('block')) {
-                try {
-                  const { queryBlockInfoViaRPC } = require("./agent-engine/tools");
-                  const rpcResult = await queryBlockInfoViaRPC(blockchainQuery);
-                  if (rpcResult && !rpcResult.includes("Error:")) {
-                    realDataContext += `\n\n[Real Blockchain Data - Fetched via RPC (AI Agent SDK Explorer API unavailable)]:\n${rpcResult}\n`;
-                    console.log(`[Chat] ✅ Block data fetched successfully via RPC fallback`);
+          const { wrapTokenViaSDK } = require("../agent-engine/tools");
+          directSDKResult = await wrapTokenViaSDK(input);
+        } catch (error) {
+          console.warn(`[Chat] ⚠️ Token wrap query failed:`, error);
+        }
+      }
+      
+      // If we got a direct SDK result (wrap), use it
+      if (directSDKResult) {
+        realDataContext += `\n\n[Real Data - Fetched via Crypto.com Developer Platform SDK]:\n${directSDKResult}\n`;
+        console.log(`[Chat] ✅ Data fetched successfully via Developer Platform SDK`);
+      } else {
+        // Exchange, Defi, and CronosID queries go through AI Agent SDK (if OPENAI_API_KEY is set)
+        // If AI Agent SDK not available, fall back to Developer Platform SDK directly
+        // AI Agent SDK handles: "Get all tickers", "Get whitelisted tokens", "Get all farms", "Resolve CronosId", etc.
+        // AI Agent SDK internally uses Developer Platform SDK and provides formatted responses
+        
+        // Check if AI Agent SDK is available (requires OPENAI_API_KEY)
+        const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+        const inputLower = input.toLowerCase();
+        const isExchangeQuery = (inputLower.includes('get all tickers') || (inputLower.includes('all tickers') && inputLower.includes('get'))) ||
+                                (inputLower.includes('ticker') && (inputLower.includes('information') || inputLower.includes('of') || inputLower.includes('for')));
+        const isDefiQuery = (inputLower.includes('whitelisted tokens') && inputLower.includes('protocol')) ||
+                            (inputLower.includes('all farms') && inputLower.includes('protocol')) ||
+                            (inputLower.includes('farm') && inputLower.includes('protocol') && inputLower.includes('symbol'));
+        const isCronosIdQuery = (inputLower.includes('resolve') && inputLower.includes('cronosid') && inputLower.includes('name')) ||
+                                (inputLower.includes('lookup') && inputLower.includes('cronosid') && input.match(/0x[a-fA-F0-9]{40}/));
+        
+        let directSDKResult: string | null = null;
+        
+        // Priority 1: Try AI Agent SDK first if OPENAI_API_KEY is available
+        if (hasOpenAIKey) {
+          // If query doesn't have an address, try to use payer's address for balance queries
+          if (input.toLowerCase().includes("balance") && !input.toLowerCase().includes("0x") && verification.payerAddress) {
+            console.log(`[Chat] ℹ️ No address in balance query, using payer's address: ${verification.payerAddress}`);
+            enhancedInput = `${input} for address ${verification.payerAddress}`;
+          }
+          const blockchainClient = createCryptoComClient();
+          if (blockchainClient) {
+            console.log(`[Chat] 🔗 Detected blockchain query, using Crypto.com AI Agent SDK...`);
+            console.log(`[Chat] 📡 SDK Status: ACTIVE - Querying Cronos blockchain via Crypto.com AI Agent SDK`);
+            try {
+              // Use enhancedInput which may include payer's address
+              const blockchainQuery = enhancedInput.includes("for address") ? enhancedInput : input;
+              const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
+              if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
+                realDataContext += `\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\n${blockchainResult}\n`;
+                console.log(`[Chat] ✅ Blockchain data fetched successfully via Crypto.com AI Agent SDK`);
+                console.log(`[Chat] 📊 SDK Result: ${blockchainResult.substring(0, 100)}...`);
+                directSDKResult = blockchainResult; // Mark as successful
+              } else {
+                console.warn(`[Chat] ⚠️ AI Agent SDK returned error or unavailable: ${blockchainResult}`);
+                // Check if it's a 403 error from Explorer API - this means we should try RPC fallback
+                if (blockchainResult && (blockchainResult.includes("403") || blockchainResult.includes("Forbidden") || blockchainResult.includes("status code 403"))) {
+                  console.log(`[Chat] 🔄 AI Agent SDK got 403 from Explorer API, trying RPC fallback for block queries...`);
+                  // For block queries, try RPC directly
+                  if (blockchainQuery.toLowerCase().includes('block')) {
+                    try {
+                      const { queryBlockInfoViaRPC } = require("../agent-engine/tools");
+                      const rpcResult = await queryBlockInfoViaRPC(blockchainQuery);
+                      if (rpcResult && !rpcResult.includes("Error:")) {
+                        realDataContext += `\n\n[Real Blockchain Data - Fetched via RPC (AI Agent SDK Explorer API unavailable)]:\n${rpcResult}\n`;
+                        console.log(`[Chat] ✅ Block data fetched successfully via RPC fallback`);
+                        directSDKResult = rpcResult;
+                      }
+                    } catch (rpcError) {
+                      console.warn(`[Chat] ⚠️ RPC fallback also failed:`, rpcError);
+                    }
                   }
-                } catch (rpcError) {
-                  console.warn(`[Chat] ⚠️ RPC fallback also failed:`, rpcError);
+                }
+                // If SDK couldn't find address, add helpful note
+                if (blockchainResult && blockchainResult.includes("Could not find")) {
+                  realDataContext += `\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.`;
                 }
               }
+            } catch (error) {
+              console.warn(`[Chat] ❌ Failed to fetch blockchain data via AI Agent SDK:`, error);
             }
-            // If SDK couldn't find address, add helpful note
-            if (blockchainResult && blockchainResult.includes("Could not find")) {
-              realDataContext += `\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.`;
-            }
-            // Don't add error to context - let agent work without blockchain data
+          } else {
+            console.log(`[Chat] ⚠️ Crypto.com AI Agent SDK client creation failed (check OPENAI_API_KEY and CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY)`);
           }
-        } catch (error) {
-          console.warn(`[Chat] ❌ Failed to fetch blockchain data via SDK:`, error);
-          // Don't fail the entire request - continue without blockchain data
         }
-      } else {
-        console.log(`[Chat] ⚠️ Crypto.com AI Agent SDK not configured (missing GEMINI_API_KEY/OPENAI_API_KEY or CRONOS_TESTNET_EXPLORER_KEY)`);
+        
+        // Priority 2: Fallback to Developer Platform SDK directly for Exchange/Defi/CronosID if AI Agent SDK didn't work
+        if (!directSDKResult && (isExchangeQuery || isDefiQuery || isCronosIdQuery)) {
+          try {
+            if (isExchangeQuery) {
+              if (inputLower.includes('get all tickers') || (inputLower.includes('all tickers') && inputLower.includes('get'))) {
+                console.log(`[Chat] 📊 Exchange query - trying Developer Platform SDK fallback...`);
+                const { getAllTickersViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await getAllTickersViaSDK();
+              } else if (inputLower.includes('ticker') && (inputLower.includes('information') || inputLower.includes('of') || inputLower.includes('for'))) {
+                console.log(`[Chat] 📊 Exchange ticker query - trying Developer Platform SDK fallback...`);
+                const { getTickerByInstrumentViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await getTickerByInstrumentViaSDK(input);
+              }
+            } else if (isDefiQuery) {
+              if (inputLower.includes('whitelisted tokens') && inputLower.includes('protocol')) {
+                console.log(`[Chat] 🏦 Defi whitelisted tokens query - trying Developer Platform SDK fallback...`);
+                const { getWhitelistedTokensViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await getWhitelistedTokensViaSDK(input);
+              } else if (inputLower.includes('all farms') && inputLower.includes('protocol')) {
+                console.log(`[Chat] 🏦 Defi all farms query - trying Developer Platform SDK fallback...`);
+                const { getAllFarmsViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await getAllFarmsViaSDK(input);
+              } else if (inputLower.includes('farm') && inputLower.includes('protocol') && inputLower.includes('symbol')) {
+                console.log(`[Chat] 🏦 Defi farm by symbol query - trying Developer Platform SDK fallback...`);
+                const { getFarmBySymbolViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await getFarmBySymbolViaSDK(input);
+              }
+            } else if (isCronosIdQuery) {
+              if (inputLower.includes('resolve') && inputLower.includes('cronosid') && inputLower.includes('name')) {
+                console.log(`[Chat] 🆔 CronosID resolve query - trying Developer Platform SDK fallback...`);
+                const { resolveCronosIdNameViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await resolveCronosIdNameViaSDK(input);
+              } else if (inputLower.includes('lookup') && inputLower.includes('cronosid') && input.match(/0x[a-fA-F0-9]{40}/)) {
+                console.log(`[Chat] 🆔 CronosID lookup query - trying Developer Platform SDK fallback...`);
+                const { lookupCronosIdAddressViaSDK } = require("../agent-engine/tools");
+                directSDKResult = await lookupCronosIdAddressViaSDK(input);
+              }
+            }
+            
+            if (directSDKResult) {
+              realDataContext += `\n\n[Real Data - Fetched via Crypto.com Developer Platform SDK (fallback)]:\n${directSDKResult}\n`;
+              console.log(`[Chat] ✅ Data fetched successfully via Developer Platform SDK (fallback)`);
+            }
+          } catch (error) {
+            console.warn(`[Chat] ⚠️ Developer Platform SDK fallback also failed:`, error);
+          }
+        }
+        
+        // For other blockchain queries (not Exchange/Defi/CronosID), use AI Agent SDK if available
+        if (!directSDKResult && !isExchangeQuery && !isDefiQuery && !isCronosIdQuery) {
+          // If query doesn't have an address, try to use payer's address for balance queries
+          if (input.toLowerCase().includes("balance") && !input.toLowerCase().includes("0x") && verification.payerAddress) {
+            console.log(`[Chat] ℹ️ No address in balance query, using payer's address: ${verification.payerAddress}`);
+            enhancedInput = `${input} for address ${verification.payerAddress}`;
+          }
+          const blockchainClient = createCryptoComClient();
+          if (blockchainClient) {
+            console.log(`[Chat] 🔗 Detected blockchain query, using Crypto.com AI Agent SDK...`);
+            console.log(`[Chat] 📡 SDK Status: ACTIVE - Querying Cronos blockchain via Crypto.com AI Agent SDK`);
+            try {
+              // Use enhancedInput which may include payer's address
+              const blockchainQuery = enhancedInput.includes("for address") ? enhancedInput : input;
+              const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
+              if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
+                realDataContext += `\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\n${blockchainResult}\n`;
+                console.log(`[Chat] ✅ Blockchain data fetched successfully via Crypto.com AI Agent SDK`);
+                console.log(`[Chat] 📊 SDK Result: ${blockchainResult.substring(0, 100)}...`);
+              } else {
+                console.warn(`[Chat] ⚠️ SDK returned error or unavailable: ${blockchainResult}`);
+                // Check if it's a 403 error from Explorer API - this means we should try RPC fallback
+                if (blockchainResult && (blockchainResult.includes("403") || blockchainResult.includes("Forbidden") || blockchainResult.includes("status code 403"))) {
+                  console.log(`[Chat] 🔄 AI Agent SDK got 403 from Explorer API, trying RPC fallback for block queries...`);
+                  // For block queries, try RPC directly
+                  if (blockchainQuery.toLowerCase().includes('block')) {
+                    try {
+                      const { queryBlockInfoViaRPC } = require("../agent-engine/tools");
+                      const rpcResult = await queryBlockInfoViaRPC(blockchainQuery);
+                      if (rpcResult && !rpcResult.includes("Error:")) {
+                        realDataContext += `\n\n[Real Blockchain Data - Fetched via RPC (AI Agent SDK Explorer API unavailable)]:\n${rpcResult}\n`;
+                        console.log(`[Chat] ✅ Block data fetched successfully via RPC fallback`);
+                      }
+                    } catch (rpcError) {
+                      console.warn(`[Chat] ⚠️ RPC fallback also failed:`, rpcError);
+                    }
+                  }
+                }
+                // If SDK couldn't find address, add helpful note
+                if (blockchainResult && blockchainResult.includes("Could not find")) {
+                  realDataContext += `\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.`;
+                }
+                // Don't add error to context - let agent work without blockchain data
+              }
+            } catch (error) {
+              console.warn(`[Chat] ❌ Failed to fetch blockchain data via SDK:`, error);
+              // Don't fail the entire request - continue without blockchain data
+            }
+          } else {
+            console.log(`[Chat] ⚠️ Crypto.com AI Agent SDK not configured (missing OPENAI_API_KEY - required for AI Agent SDK)`);
+          }
+        }
       }
     }
 
@@ -381,7 +596,263 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
         console.warn(`[Chat] ⚠️ Error processing swap request:`, swapError);
       }
       
-      console.log(`[Chat] 💱 Swap context added for ${network}`);
+      // Log the actual quote network if available, otherwise backend network
+      const actualQuoteNetwork = swapQuoteInfo?.network || network;
+      console.log(`[Chat] 💱 Swap context added for ${actualQuoteNetwork}${actualQuoteNetwork !== network ? ` (quote network, backend is ${network})` : ''}`);
+    }
+
+    // Process transfer requests using SDK's Token.transfer() (returns magic links)
+    if (needsTransfer) {
+      try {
+        // Extract transfer parameters - handle both "send X TOKEN to 0x..." and "send X TOKEN 0x..." formats
+        // Also handle "testnet cro", "testnet CRO", etc.
+        // Pattern: (transfer|send) amount (optional words like "testnet") token (to)? address
+        let transferMatch = input.match(/(?:transfer|send)\s+(\d+(?:\.\d+)?)\s+((?:\w+\s+)*?)(\w+)\s+to\s+(0x[a-fA-F0-9]{40})/i);
+        if (!transferMatch) {
+          // Try without "to" - "send X TOKEN 0x..."
+          transferMatch = input.match(/(?:transfer|send)\s+(\d+(?:\.\d+)?)\s+((?:\w+\s+)*?)(\w+)\s+(0x[a-fA-F0-9]{40})/i);
+        }
+        
+        if (transferMatch) {
+          const amount = transferMatch[1];
+          const optionalWords = (transferMatch[2] || '').trim(); // e.g., "testnet "
+          let tokenSymbol = (transferMatch[3] || '').toUpperCase(); // e.g., "cro"
+          const toAddress = transferMatch[4];
+          
+          // Combine optional words with token symbol for normalization
+          const fullTokenString = (optionalWords + ' ' + tokenSymbol).trim().toUpperCase();
+          
+          // Handle "testnet cro", "testnet CRO", "TCRO" variations
+          // Normalize token symbol - remove "TESTNET" prefix if present
+          if (fullTokenString.includes('TESTNET')) {
+            tokenSymbol = fullTokenString.replace(/TESTNET/gi, '').trim() || 'CRO';
+          }
+          if (tokenSymbol === 'TCRO') {
+            tokenSymbol = 'CRO'; // Treat testnet CRO as CRO for native transfer
+          }
+          
+          // Check for contract address for ERC-20 tokens
+          const contractMatch = input.match(/contract[:\s]+(0x[a-fA-F0-9]{40})/i);
+          const contractAddress = contractMatch ? contractMatch[1] : undefined;
+          
+          const isNativeToken = tokenSymbol === 'CRO' || tokenSymbol === 'NATIVE';
+          
+          console.log(`[Chat] 💸 Processing transfer: ${amount} ${tokenSymbol} to ${toAddress}`);
+          
+          // Call SDK's Token.transfer() to get magic link
+          // Use Developer Platform SDK (not AI Agent SDK) for Token.transfer()
+          const { initDeveloperPlatformSDK } = require("../agent-engine/tools");
+          const sdk = initDeveloperPlatformSDK();
+          
+          if (sdk && sdk.Token) {
+            try {
+              let transferResponse;
+              
+              // SDK gets provider from Client.getProvider() (set in Client.init())
+              // Don't pass provider in payload - SDK handles it automatically
+              if (isNativeToken) {
+                console.log(`[Chat] 💸 Calling Token.transfer() for native CRO`);
+                console.log(`[Chat] 💸 Transfer params:`, { to: toAddress, amount: parseFloat(amount) });
+                transferResponse = await sdk.Token.transfer({
+                  to: toAddress,
+                  amount: parseFloat(amount)
+                });
+              } else if (contractAddress) {
+                console.log(`[Chat] 💸 Calling Token.transfer() for ERC-20 token`);
+                console.log(`[Chat] 💸 Transfer params:`, { to: toAddress, amount: parseFloat(amount), contractAddress });
+                transferResponse = await sdk.Token.transfer({
+                  to: toAddress,
+                  amount: parseFloat(amount),
+                  contractAddress: contractAddress
+                });
+              } else {
+                console.warn(`[Chat] ⚠️ ERC-20 transfer requires contract address`);
+                // Will be handled by agent response
+              }
+              
+              if (transferResponse) {
+                console.log(`[Chat] 💸 Transfer response:`, JSON.stringify(transferResponse, null, 2).substring(0, 200));
+                const responseData = transferResponse?.data || transferResponse;
+                const magicLink = responseData?.magicLink || responseData?.magic_link || responseData?.link;
+                
+                if (magicLink) {
+                  transferMagicLink = {
+                    url: magicLink,
+                    amount: amount,
+                    token: tokenSymbol,
+                    to: toAddress,
+                    type: isNativeToken ? 'native' : 'erc20'
+                  };
+                  console.log(`[Chat] ✅ Magic link generated for transfer: ${magicLink.substring(0, 50)}...`);
+                } else {
+                  console.warn(`[Chat] ⚠️ Transfer response received but no magic link found:`, transferResponse);
+                }
+              }
+            } catch (transferError: any) {
+              console.error(`[Chat] ⚠️ Error calling SDK Token.transfer():`, transferError);
+              console.error(`[Chat] Transfer parameters attempted:`, {
+                to: toAddress,
+                amount: amount,
+                tokenSymbol,
+                isNativeToken,
+                contractAddress: contractAddress || 'N/A'
+              });
+              
+              // Check if error is about missing provider
+              if (transferError.message && transferError.message.includes('provider')) {
+                console.error(`[Chat] ⚠️ Provider URL is required for Token.transfer()`);
+                console.error(`[Chat] ⚠️ See backend/PROVIDER_URL_GUIDE.md for how to get provider URL`);
+                console.error(`[Chat] ⚠️ Set CRYPTO_COM_PROVIDER or CRYPTO_COM_SSO_WALLET_URL in .env`);
+                console.error(`[Chat] ⚠️ Provider URL can be found in Crypto.com Developer Platform dashboard`);
+              }
+              
+              // Continue - agent will handle the error in response
+            }
+          } else {
+            console.warn(`[Chat] ⚠️ Developer Platform SDK not available for Token.transfer()`);
+          }
+        }
+      } catch (transferError) {
+        console.warn(`[Chat] ⚠️ Error processing transfer request:`, transferError);
+      }
+    }
+
+    // Handle Portfolio Queries
+    if (needsPortfolio && verification.payerAddress) {
+      console.log(`[Chat] 💼 Portfolio query detected for address: ${verification.payerAddress}`);
+      try {
+        const { initDeveloperPlatformSDK } = require("../agent-engine/tools");
+        const sdk = initDeveloperPlatformSDK();
+        
+        if (sdk && sdk.Wallet && sdk.Token) {
+          const balances: Array<{ symbol: string; balance: string; contractAddress?: string }> = [];
+          
+          // Get native CRO balance
+          try {
+            const nativeBalance = await sdk.Wallet.balance(verification.payerAddress);
+            if (nativeBalance && nativeBalance.data && nativeBalance.data.balance) {
+              balances.push({
+                symbol: 'CRO',
+                balance: nativeBalance.data.balance
+              });
+            }
+          } catch (e) {
+            console.warn(`[Chat] ⚠️ Failed to fetch native balance:`, e);
+          }
+          
+          // Get common ERC-20 token balances (USDC, VVS, etc.)
+          const commonTokens = [
+            { address: '0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0', symbol: 'USDC' }, // USDC.e on testnet
+            { address: '0x2D03bECE6747ADC00E1A131bBA1469C15FD11E03', symbol: 'VVS' }, // VVS on testnet
+          ];
+          
+          for (const token of commonTokens) {
+            try {
+              const tokenBalance = await sdk.Token.getERC20TokenBalance(verification.payerAddress, token.address);
+              if (tokenBalance && tokenBalance.data && tokenBalance.data.balance) {
+                const balanceStr = tokenBalance.data.balance;
+                // Only include if balance > 0
+                if (parseFloat(balanceStr) > 0) {
+                  balances.push({
+                    symbol: token.symbol,
+                    balance: balanceStr,
+                    contractAddress: token.address
+                  });
+                }
+              }
+            } catch (e) {
+              // Token might not exist or have no balance - skip
+              continue;
+            }
+          }
+          
+          if (balances.length > 0) {
+            portfolioData = {
+              address: verification.payerAddress,
+              balances: balances
+            };
+            console.log(`[Chat] ✅ Portfolio data fetched: ${balances.length} tokens`);
+            realDataContext += `\n\n[Portfolio Data]:\nUser wallet: ${verification.payerAddress}\nToken balances:\n${balances.map(b => `- ${b.symbol}: ${b.balance}`).join('\n')}\n`;
+          }
+        }
+      } catch (portfolioError) {
+        console.error(`[Chat] ⚠️ Error fetching portfolio:`, portfolioError);
+      }
+    }
+
+    // Handle Transaction History Queries
+    if (needsHistory && verification.payerAddress) {
+      console.log(`[Chat] 📜 Transaction history query detected for address: ${verification.payerAddress}`);
+      try {
+        const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        
+        // Get transaction count (nonce) to know how many transactions exist
+        const txCount = await provider.getTransactionCount(verification.payerAddress);
+        console.log(`[Chat] ✅ Transaction count: ${txCount}`);
+        
+        // Fetch recent transactions by scanning recent blocks
+        // We'll get the last 20 blocks and check for transactions from/to this address
+        const currentBlock = await provider.getBlockNumber();
+        const txList: any[] = [];
+        const blocksToCheck = Math.min(20, currentBlock); // Check last 20 blocks (faster)
+        const addressLower = verification.payerAddress.toLowerCase();
+        
+        console.log(`[Chat] 🔍 Scanning last ${blocksToCheck} blocks for transactions...`);
+        
+        for (let i = 0; i < blocksToCheck && txList.length < 10; i++) {
+          try {
+            const blockNumber = currentBlock - i;
+            const block = await provider.getBlock(blockNumber, true); // true = include transactions
+            
+            if (block && block.transactions && Array.isArray(block.transactions)) {
+              for (const txHash of block.transactions) {
+                if (txList.length >= 10) break;
+                
+                try {
+                  const tx = await provider.getTransaction(txHash);
+                  if (tx && tx.hash && 
+                      (tx.from?.toLowerCase() === addressLower || 
+                       tx.to?.toLowerCase() === addressLower)) {
+                    txList.push({
+                      hash: tx.hash,
+                      from: tx.from || 'N/A',
+                      to: tx.to || 'N/A',
+                      value: tx.value ? ethers.formatEther(tx.value) + ' CRO' : '0 CRO',
+                      timestamp: block.timestamp ? Number(block.timestamp) * 1000 : Date.now(),
+                      blockNumber: Number(block.number)
+                    });
+                  }
+                } catch (txError) {
+                  // Skip individual tx errors
+                }
+              }
+            }
+          } catch (blockError) {
+            // Skip block errors and continue
+            console.log(`[Chat] ⚠️ Error fetching block ${currentBlock - i}:`, blockError);
+            break;
+          }
+        }
+        
+        if (txList.length > 0) {
+          // Sort by block number (newest first)
+          txList.sort((a, b) => b.blockNumber - a.blockNumber);
+          
+          transactionHistory = {
+            address: verification.payerAddress,
+            transactions: txList
+          };
+          console.log(`[Chat] ✅ Transaction history fetched: ${txList.length} transactions`);
+          realDataContext += `\n\n[Transaction History]:\nUser wallet: ${verification.payerAddress}\nTotal transactions: ${txCount}\nRecent transactions found: ${txList.length}\n`;
+        } else {
+          // Even if no recent transactions found, provide the count
+          console.log(`[Chat] ℹ️ No recent transactions found in last ${blocksToCheck} blocks (total: ${txCount})`);
+          realDataContext += `\n\n[Transaction History]:\nUser wallet: ${verification.payerAddress}\nTotal transaction count: ${txCount}\nNote: No recent transactions found in last ${blocksToCheck} blocks. View full history on explorer.\n`;
+        }
+      } catch (historyError) {
+        console.error(`[Chat] ⚠️ Error fetching transaction history:`, historyError);
+      }
     }
 
     // Get network info for system prompt (if not already set in swap context)
@@ -393,7 +864,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
       : (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae");
 
     // Build system prompt based on detected needs
-    let systemPrompt = `You are AgentMarket, a unified AI assistant with access to multiple tools and capabilities.
+    let systemPrompt = `You are OneChat, a unified AI assistant with access to multiple tools and capabilities.
 
 ## Your Capabilities:
 ${needsMarketData ? "- **Market Data**: You have access to real-time cryptocurrency prices and market data from Crypto.com Exchange\n" : ""}
@@ -440,36 +911,25 @@ When users ask about token swaps:
 ` : ""}
 ## Response Format:
 - If you have real blockchain data: Present it clearly with the actual values
-- If you DON'T have real data: Explain that the blockchain query service is unavailable and suggest using a blockchain explorer like Cronoscan (https://testnet.cronoscan.com) to check the balance manually
+- If you DON'T have real data: Explain that the blockchain query service is unavailable and suggest using a blockchain explorer like Cronos Explorer (https://explorer.cronos.org/testnet) to check the balance manually
 - **DO NOT** show Python code or tool_code commands - provide natural language responses only
 - For swap requests: Provide clear, helpful guidance about the swap process, network, and requirements
 
 User Input:
 `;
 
-    // Execute on contract
-    console.log(`[Chat] Executing agent on contract: Agent ID ${UNIFIED_AGENT_ID}, Payment Hash: ${paymentHashBytes32}`);
-    let contractExecutionId: number | null;
-    try {
-      contractExecutionId = await executeAgentOnContract(UNIFIED_AGENT_ID, paymentHashBytes32, input);
-    } catch (contractError) {
-      console.error("[Chat] ❌ Contract execution failed:", contractError);
-      return res.status(500).json({
-        error: "Contract execution failed",
-        details: contractError instanceof Error ? contractError.message : String(contractError),
-      });
-    }
+    // SKIP contract execution for unified chat to avoid counting toward agent 1's metrics
+    // Unified chat should NOT increment any agent's totalExecutions or affect reputation
+    // We still track in database for analytics, but don't create on-chain execution records
+    console.log(`[Chat] ℹ️  Skipping contract execution for unified chat (does not affect agent metrics)`);
+    console.log(`[Chat] Using payment hash for tracking: ${paymentHashBytes32}`);
     
-    if (contractExecutionId === null) {
-      console.warn(`[Chat] ⚠️ Contract execution returned null - payment may be already used`);
-      return res.status(402).json({
-        error: "Payment already used or contract call failed",
-        details: "The payment hash has already been used. Please create a new payment.",
-        paymentRequired: true,
-      });
-    }
-    
-    console.log(`[Chat] ✅ Contract execution successful: Execution ID ${contractExecutionId}`);
+    // Generate a unique execution ID for database tracking (not on-chain)
+    // Use timestamp + hash to ensure uniqueness
+    const contractExecutionId = parseInt(
+      `9${Date.now().toString().slice(-8)}${paymentHashBytes32.slice(2, 10)}`,
+      16
+    ) % 2147483647; // Keep within int32 range for database
 
     // Log payment
     try {
@@ -521,7 +981,8 @@ User Input:
       };
     }
     
-    // Log execution
+    // Log execution to database (for analytics/tracking)
+    // NOTE: We do NOT verify on contract for unified chat to avoid counting toward agent 1's metrics
     try {
       db.addExecution({
         executionId: contractExecutionId,
@@ -533,50 +994,34 @@ User Input:
         output: result.output || "",
         success: result.success,
         timestamp: Date.now(),
-        verified: false,
+        verified: false, // Unified chat executions are not verified on contract
       });
-      console.log(`[Chat] ✅ Execution logged to database`);
+      console.log(`[Chat] ✅ Execution logged to database (unified chat - not counted toward agent metrics)`);
     } catch (dbError) {
       console.warn(`[Chat] ⚠️ Failed to log execution to database:`, dbError);
       // Continue execution even if DB logging fails
     }
 
-    // Verify on contract
-    const verified = await verifyExecutionOnContract(
-      contractExecutionId,
-      result.output || "",
-      result.success
-    );
-
-    if (verified) {
-      db.updateExecution(contractExecutionId, { verified: true });
-    }
+    // SKIP contract verification for unified chat
+    // Unified chat should NOT count toward any agent's execution count or reputation
+    // We still log to database for analytics, but don't update contract metrics
+    console.log(`[Chat] ℹ️  Skipping contract verification for unified chat (does not affect agent metrics)`);
 
     // Settle payment if successful
     if (result.success) {
       try {
+        // For unified chat: Settle directly to platform fee recipient (not escrow)
+        // This ensures unified chat revenue goes to the platform, not to any agent developer
         await settlePayment(paymentPayload, {
           priceUsd: agentPrice,
-          payTo: escrowAddress,
+          payTo: unifiedChatPayTo, // Platform fee recipient for unified chat
           testnet: true,
         }, paymentHeaderValue);
-        console.log("Payment settled to escrow successfully");
-        
-        // Release payment to developer
-        // For unified chat (Agent ID 1): Not a real agent, so transfer directly to contract owner
-        // If release fails (agent not in registry), funds stay in escrow (acceptable for unified chat)
-        console.log("Releasing payment to contract owner (unified chat - not a registered agent)...");
-        const released = await releasePaymentToDeveloper(paymentHashBytes32, UNIFIED_AGENT_ID);
-        if (released) {
-          console.log("✅ Payment released to contract owner successfully");
-          db.updatePayment(paymentHashBytes32, { status: "settled" });
-        } else {
-          console.log("ℹ️  Payment settled in escrow (unified chat doesn't require agent registration)");
-          console.log("   Funds are safely held in escrow and belong to contract owner");
-          db.updatePayment(paymentHashBytes32, { status: "settled" }); // Mark as settled
-        }
+        console.log(`[Chat] ✅ Payment settled directly to platform fee recipient: ${unifiedChatPayTo}`);
+        console.log(`[Chat] ℹ️  Unified chat revenue goes to platform, not to any agent developer`);
+        db.updatePayment(paymentHashBytes32, { status: "settled" });
       } catch (settleError) {
-        console.error("Payment settlement error:", settleError);
+        console.error("[Chat] Payment settlement error:", settleError);
         db.updatePayment(paymentHashBytes32, { status: "failed" });
       }
     } else {
@@ -592,6 +1037,18 @@ User Input:
       ...(swapTransactionData && swapQuoteInfo && {
         swapTransaction: swapTransactionData,
         swapQuote: swapQuoteInfo,
+      }),
+      // Include transfer magic link if available
+      ...(transferMagicLink && {
+        transferMagicLink: transferMagicLink,
+      }),
+      // Include portfolio data if available
+      ...(portfolioData && {
+        portfolio: portfolioData,
+      }),
+      // Include transaction history if available
+      ...(transactionHistory && {
+        transactionHistory: transactionHistory,
       }),
     });
   } catch (error) {
@@ -658,8 +1115,8 @@ async function executeAgentWithPrompt(
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: openRouterKey,
       defaultHeaders: {
-        "HTTP-Referer": "https://agentmarket.app",
-        "X-Title": "AgentMarket",
+        "HTTP-Referer": "https://onechat.app",
+        "X-Title": "OneChat",
       },
     });
     modelName = openRouterModel;
@@ -732,8 +1189,8 @@ async function executeAgentWithPrompt(
             baseURL: "https://openrouter.ai/api/v1",
             apiKey: openRouterKey,
             defaultHeaders: {
-              "HTTP-Referer": "https://agentmarket.app",
-              "X-Title": "AgentMarket",
+              "HTTP-Referer": "https://onechat.app",
+              "X-Title": "OneChat",
             },
           });
           modelName = openRouterModel;

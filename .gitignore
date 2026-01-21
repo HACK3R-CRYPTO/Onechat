@@ -43,7 +43,7 @@ Thumbs.db
 # Foundry
 cache/
 out/
-contracts/lib/
+lib/
 
 # TypeScript
 *.tsbuildinfo

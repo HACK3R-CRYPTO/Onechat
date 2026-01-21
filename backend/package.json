@@ -1,7 +1,7 @@
 {
-  "name": "agentmarket-backend",
+  "name": "onechat-backend",
   "version": "1.0.0",
-  "description": "AgentMarket backend - AI agent execution engine with x402 payments",
+  "description": "OneChat backend - Unified Web3 assistant with x402 payments",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

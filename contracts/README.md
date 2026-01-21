@@ -1,6 +1,6 @@
-# AgentMarket Smart Contracts
+# OneChat Smart Contracts
 
-Smart contracts for AgentMarket. Deploy to Cronos. Test locally. Verify on explorer.
+Smart contracts for OneChat. Deploy to Cronos. Test locally. Verify on explorer.
 
 ## What These Contracts Do
 

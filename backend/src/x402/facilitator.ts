@@ -690,7 +690,7 @@ export function getNetworkInfo(testnet?: boolean) {
     usdcAddress: testnet ? USDC_CRONOS_TESTNET : USDC_CRONOS_MAINNET,
     rpcUrl: testnet ? "https://evm-t3.cronos.org" : "https://evm.cronos.org",
     blockExplorer: testnet
-      ? "https://testnet.cronoscan.com"
-      : "https://cronoscan.com",
+      ? "https://explorer.cronos.org/testnet"
+      : "https://explorer.cronos.org",
   };
 }

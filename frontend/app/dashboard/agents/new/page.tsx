@@ -109,7 +109,7 @@ export default function NewAgentPage() {
                   Register New Agent
                 </h1>
                 <p className="text-sm text-neutral-400 mt-1">
-                  Create and register your AI agent on AgentMarket
+                  Create and register your AI agent on OneChat
                 </p>
               </div>
             </div>
@@ -236,7 +236,7 @@ export default function NewAgentPage() {
               <div className="p-4 bg-neutral-900 rounded-lg border border-neutral-800">
                 <p className="text-xs text-neutral-400 mb-1">Transaction Hash:</p>
                 <a
-                  href={`https://testnet.cronoscan.com/tx/${hash}`}
+                  href={`https://explorer.cronos.org/testnet/tx/${hash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-400 hover:text-blue-300 break-all"

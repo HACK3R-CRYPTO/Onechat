@@ -1,6 +1,6 @@
-# AgentMarket Backend
+# OneChat Backend
 
-Node.js backend for AgentMarket. Agent execution engine. x402 payment handling. REST API endpoints. Cronos contract integration. Crypto.com SDK integration.
+Node.js backend for OneChat. Unified Web3 assistant engine. x402 payment handling. REST API endpoints. Cronos contract integration. Crypto.com SDK integration.
 
 ## What This Backend Does
 
@@ -41,6 +41,13 @@ BACKEND_PRIVATE_KEY=0x...your-private-key-here
 CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY=your-developer-platform-api-key-here
 CRONOS_TESTNET_EXPLORER_KEY=your-explorer-key-here
 
+# Magic Link Signer App (for Token.transfer())
+# Run: git clone https://github.com/crypto-com/cdc-ai-agent-signer-app && cd cdc-ai-agent-signer-app && npm install && npm run dev
+# Then set this to: http://localhost:5173 (or your deployed signer app URL)
+CRYPTO_COM_PROVIDER=http://localhost:5173
+# OR use this name (same thing)
+CRYPTO_COM_SSO_WALLET_URL=http://localhost:5173
+
 # Optional: OpenAI API Key (for AI Agent SDK - uses gpt-4o-mini, cheapest model)
 OPENAI_API_KEY=your-openai-api-key-here
 
@@ -48,11 +55,34 @@ OPENAI_API_KEY=your-openai-api-key-here
 GOOGLE_PROJECT_ID=your-project-id-here
 ```
 
-Required keys: BACKEND_PRIVATE_KEY for contract interactions. GEMINI_API_KEY for AI agent execution. CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY for blockchain queries. CRONOS_TESTNET_EXPLORER_KEY recommended for blockchain queries.
+**Required keys:**
+- `BACKEND_PRIVATE_KEY` - For contract interactions
+- `GEMINI_API_KEY` - For AI agent execution
+- `CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY` - For blockchain queries
+- `CRONOS_TESTNET_EXPLORER_KEY` - Recommended for blockchain queries
 
-Optional keys: OPENAI_API_KEY enables AI Agent SDK with gpt-4o-mini. Cheapest model at $0.075 input and $0.30 output per 1M tokens. Node.js SDK only supports OpenAI, not Gemini. GOOGLE_PROJECT_ID usually not needed for standard Gemini API.
+**Optional keys:**
+- `CRYPTO_COM_PROVIDER` or `CRYPTO_COM_SSO_WALLET_URL` - **Required for `Token.transfer()` and `Token.wrap()` magic links**. Set to your signer app URL (default: `http://localhost:5173`). See [PROVIDER_URL_GUIDE.md](./PROVIDER_URL_GUIDE.md) for setup.
+- `OPENAI_API_KEY` - Enables AI Agent SDK with gpt-4o-mini. Cheapest model at $0.075 input and $0.30 output per 1M tokens. Node.js SDK only supports OpenAI, not Gemini.
+- `GOOGLE_PROJECT_ID` - Usually not needed for standard Gemini API.
 
-Important: Never commit `.env` file (already in .gitignore).
+**Important:** Never commit `.env` file (already in .gitignore).
+
+## Magic Link Signer App Setup
+
+To enable `Token.transfer()` and `Token.wrap()` magic links, you need to run the Crypto.com signer app:
+
+```bash
+# Clone the signer app
+git clone https://github.com/crypto-com/cdc-ai-agent-signer-app
+cd cdc-ai-agent-signer-app
+npm install
+npm run dev
+```
+
+This starts the signer app on `http://localhost:5173`. Set `CRYPTO_COM_PROVIDER=http://localhost:5173` in your `.env` file.
+
+See [PROVIDER_URL_GUIDE.md](./PROVIDER_URL_GUIDE.md) for detailed instructions.
 
 ### Mainnet switch (optional)
 ```env

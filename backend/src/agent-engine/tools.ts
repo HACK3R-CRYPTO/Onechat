@@ -3,6 +3,8 @@
  * Provides real blockchain and market data capabilities to agents
  */
 
+import { ethers } from "ethers";
+
 // Optional: Crypto.com AI Agent SDK (requires additional setup)
 // import { createClient, QueryOptions } from "@crypto.com/ai-agent-client";
 
@@ -218,7 +220,7 @@ async function initMCPClient(): Promise<any> {
     
     const transport = new StreamableHTTPClientTransport(new URL(MCP_MARKET_DATA_URL));
     const client = new Client({ 
-      name: "agentmarket-backend", 
+      name: "onechat-backend", 
       version: "1.0.0" 
     });
 
@@ -480,7 +482,7 @@ async function queryBlockInfoViaRPC(query: string): Promise<string> {
                `- Gas Used: ${gasUsed}\n` +
                `- Gas Limit: ${gasLimit}\n` +
                `- Hash: ${block?.hash || 'N/A'}\n` +
-               `\nView on Cronoscan: https://testnet.cronoscan.com/block/${blockNumber}`;
+               `\nView on Cronos Explorer: https://explorer.cronos.org/testnet/block/${blockNumber}`;
       } catch (error: any) {
         console.error("[SDK] ❌ Error fetching latest block via RPC:", error);
         return `Error fetching latest block: ${error?.message || String(error)}`;
@@ -513,7 +515,7 @@ async function queryBlockInfoViaRPC(query: string): Promise<string> {
                `- Gas Limit: ${gasLimit}\n` +
                `- Hash: ${block?.hash || 'N/A'}\n` +
                `- Parent Hash: ${block?.parentHash || 'N/A'}\n` +
-               `\nView on Cronoscan: https://testnet.cronoscan.com/block/${blockNumber}`;
+               `\nView on Cronos Explorer: https://explorer.cronos.org/testnet/block/${blockNumber}`;
       } catch (error: any) {
         console.error("[SDK] ❌ Error fetching block via RPC:", error);
         return `Error fetching block: ${error?.message || String(error)}`;
@@ -524,7 +526,7 @@ async function queryBlockInfoViaRPC(query: string): Promise<string> {
     try {
       const blockNumber = await provider.getBlockNumber();
       return `Latest block number on Cronos: ${blockNumber}\n` +
-             `View on Cronoscan: https://testnet.cronoscan.com/block/${blockNumber}`;
+             `View on Cronos Explorer: https://explorer.cronos.org/testnet/block/${blockNumber}`;
     } catch (error: any) {
       return `Error fetching block information: ${error?.message || String(error)}`;
     }
@@ -590,17 +592,17 @@ async function queryBlockchainViaRPC(query: string): Promise<string> {
         return `Transaction information for address ${address}:\n` +
                `- Total transaction count: ${txCount}\n` +
                `${recentBlockInfo ? `- ${recentBlockInfo}\n` : ''}` +
-               `\nNote: For detailed transaction history, please visit https://testnet.cronoscan.com/address/${address}`;
+               `\nNote: For detailed transaction history, please visit https://explorer.cronos.org/testnet/address/${address}`;
       } catch (txError: any) {
         console.error("[SDK] ❌ Error fetching transaction info via RPC:", txError);
         return `Error fetching transaction info via RPC: ${txError?.message || String(txError)}. ` +
-               `You can check transactions at https://testnet.cronoscan.com/address/${address}`;
+               `You can check transactions at https://explorer.cronos.org/testnet/address/${address}`;
       }
     }
     
     // Default: return address info with helpful links
     return `Address ${address} found in query. Query completed via direct RPC.\n` +
-           `You can view this address on Cronoscan: https://testnet.cronoscan.com/address/${address}`;
+           `You can view this address on Cronos Explorer: https://explorer.cronos.org/testnet/address/${address}`;
   } catch (error: any) {
     console.error("[SDK] ❌ Error in RPC blockchain query:", error);
     return `Error: ${error?.message || String(error)}`;
@@ -714,9 +716,9 @@ async function queryBlockchainDirectly(query: string): Promise<string> {
 /**
  * Initialize Developer Platform Client SDK
  */
-function initDeveloperPlatformSDK(): { Client: any; Transaction: any; Token: any; Wallet: any } | null {
+export function initDeveloperPlatformSDK(): { Client: any; Transaction: any; Token: any; Wallet: any; Exchange: any; Block: any; Defi: any; CronosID: any } | null {
   try {
-    const { Client, Transaction, Token, Wallet } = require("@crypto.com/developer-platform-client");
+    const { Client, Transaction, Token, Wallet, Exchange, Block, Defi, CronosID } = require("@crypto.com/developer-platform-client");
     const developerPlatformApiKey = process.env.CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY || process.env.CRONOS_TESTNET_EXPLORER_KEY;
     
     if (!developerPlatformApiKey) {
@@ -726,14 +728,31 @@ function initDeveloperPlatformSDK(): { Client: any; Transaction: any; Token: any
     
     // Make sure Client is initialized
     try {
-      Client.init({
+      // Provider is required for Token.transfer() magic links
+      // Provider should be a URL (e.g., SSO wallet URL or provider endpoint)
+      const provider = process.env.CRYPTO_COM_PROVIDER || process.env.CRYPTO_COM_SSO_WALLET_URL;
+      
+      const initConfig: any = {
         apiKey: developerPlatformApiKey,
-      });
+      };
+      
+      // Add provider if available (required for Token.transfer() magic links)
+      // Provider is optional in Client.init() but required for Token.transfer()
+      if (provider) {
+        initConfig.provider = provider;
+        console.log(`[SDK] Client initialized with provider: ${provider.substring(0, 50)}...`);
+      } else {
+        console.warn(`[SDK] ⚠️ CRYPTO_COM_PROVIDER or CRYPTO_COM_SSO_WALLET_URL not set`);
+        console.warn(`[SDK] ⚠️ Token.transfer() requires provider URL - see PROVIDER_URL_GUIDE.md`);
+        console.warn(`[SDK] ⚠️ Other SDK functions (balance, transactions) will work without provider`);
+      }
+      
+      Client.init(initConfig);
     } catch (initError) {
       console.warn("[SDK] Client already initialized or init failed:", initError);
     }
     
-    return { Client, Transaction, Token, Wallet };
+    return { Client, Transaction, Token, Wallet, Exchange, Block, Defi, CronosID };
   } catch (error) {
     console.error("[SDK] ❌ Failed to load Developer Platform SDK:", error);
     return null;
@@ -784,7 +803,7 @@ async function queryTransactionsViaSDK(query: string): Promise<string> {
   return `Transaction information for address ${address}:\n` +
          `- Total transaction count: ${txCount}\n` +
          `${transactionsInfo}` +
-         `\nFor detailed transaction history, visit: https://testnet.cronoscan.com/address/${address}`;
+         `\nFor detailed transaction history, visit: https://explorer.cronos.org/testnet/address/${address}`;
 }
 
 /**
@@ -807,26 +826,163 @@ async function queryTransactionByHash(query: string): Promise<string> {
   const hash = hashMatch[0];
   console.log(`[SDK] Using Developer Platform Client SDK (Transaction.getTransactionByHash) for hash: ${hash}`);
   
-  const tx = await Transaction.getTransactionByHash(hash);
+  const txResponse = await Transaction.getTransactionByHash(hash);
   console.log(`[SDK] ✅ Transaction fetched via SDK`);
+  console.log(`[SDK] Transaction response type:`, typeof txResponse);
+  console.log(`[SDK] Transaction response keys:`, txResponse ? Object.keys(txResponse) : 'null');
   
-  // Get transaction status
+  // SDK response structure: { status: "Success", data: { transaction: {...} } } or direct object
+  let tx: any = {};
+  if (txResponse?.data) {
+    // Check if data has a nested 'transaction' object (SDK wraps it)
+    if (txResponse.data.transaction) {
+      tx = txResponse.data.transaction;
+      console.log(`[SDK] Transaction found in data.transaction`);
+    } else {
+      tx = txResponse.data;
+      console.log(`[SDK] Transaction data directly in data`);
+    }
+    console.log(`[SDK] Transaction data keys:`, Object.keys(tx));
+    console.log(`[SDK] Transaction from:`, tx.from);
+    console.log(`[SDK] Transaction to:`, tx.to);
+    console.log(`[SDK] Transaction blockNumber:`, tx.blockNumber);
+    console.log(`[SDK] Transaction value:`, tx.value);
+  } else if (txResponse) {
+    tx = txResponse;
+  }
+  
+  // Log full structure for debugging (truncated)
+  console.log(`[SDK] Transaction data sample:`, JSON.stringify(tx, null, 2).substring(0, 800));
+  
+  // Parse transaction fields first - try multiple possible field names from SDK
+  // Handle BigNumber/string conversions
+  const from = tx.from || tx.fromAddress || tx.sender || 'N/A';
+  const to = tx.to || tx.toAddress || tx.recipient || tx.contractAddress || 'N/A';
+  
+  // Value might be in wei, hex, BigNumber, or already formatted
+  let valueRaw = tx.value || tx.amount || tx.valueWei || '0';
+  let value: string;
+  
+  // Handle BigNumber objects
+  if (valueRaw && typeof valueRaw === 'object' && valueRaw.toString) {
+    valueRaw = valueRaw.toString();
+  }
+  
+  if (typeof valueRaw === 'string' && valueRaw.startsWith('0x')) {
+    // Hex value - convert
+    try {
+      value = ethers.formatEther(valueRaw);
+    } catch (e) {
+      value = valueRaw;
+    }
+  } else if (typeof valueRaw === 'string' && !isNaN(Number(valueRaw)) && Number(valueRaw) > 0) {
+    // String number - might be wei
+    try {
+      value = ethers.formatEther(valueRaw);
+    } catch (e) {
+      value = valueRaw;
+    }
+  } else if (typeof valueRaw === 'bigint' || typeof valueRaw === 'number') {
+    // BigInt or number - convert
+    try {
+      value = ethers.formatEther(String(valueRaw));
+    } catch (e) {
+      value = String(valueRaw);
+    }
+  } else {
+    value = String(valueRaw || '0');
+  }
+  
+  // Block number - handle BigNumber/string conversions
+  let blockNumber: string | number = tx.blockNumber || tx.block || tx.blockHeight || 'Pending';
+  if (blockNumber && typeof blockNumber === 'object') {
+    const blockNumAny = blockNumber as any;
+    if (typeof blockNumAny.toString === 'function') {
+      blockNumber = blockNumAny.toString();
+    }
+  }
+  if (blockNumber && blockNumber !== 'Pending') {
+    blockNumber = Number(blockNumber);
+  }
+  
+  // Gas used - handle BigNumber/string conversions
+  let gasUsed: string | number = tx.gasUsed || tx.gas || tx.gasLimit || 'N/A';
+  if (gasUsed && typeof gasUsed === 'object') {
+    const gasUsedAny = gasUsed as any;
+    if (typeof gasUsedAny.toString === 'function') {
+      gasUsed = gasUsedAny.toString();
+    }
+  }
+  if (gasUsed && gasUsed !== 'N/A') {
+    gasUsed = Number(gasUsed);
+  }
+  
+  // Gas price - handle BigNumber/string conversions
+  let gasPrice: string = 'N/A';
+  if (tx.gasPrice) {
+    let gasPriceRaw = tx.gasPrice;
+    if (gasPriceRaw && typeof gasPriceRaw === 'object' && gasPriceRaw.toString) {
+      gasPriceRaw = gasPriceRaw.toString();
+    }
+    try {
+      gasPrice = ethers.formatUnits(String(gasPriceRaw), 'gwei') + ' gwei';
+    } catch (e) {
+      gasPrice = String(gasPriceRaw) + ' wei';
+    }
+  }
+  
+  // Get transaction status (after we have blockNumber)
   let status = "unknown";
   try {
-    const txStatus = await Transaction.getTransactionStatus(hash);
-    status = txStatus?.status || txStatus?.data?.status || "unknown";
+    const txStatusResponse = await Transaction.getTransactionStatus(hash);
+    console.log(`[SDK] Status response:`, txStatusResponse);
+    const txStatus = txStatusResponse?.data || txStatusResponse || {};
+    let statusRaw = txStatus.status || txStatusResponse?.status || tx?.status || "Success";
+    console.log(`[SDK] Transaction status raw:`, statusRaw);
+    
+    // Map status codes: 1 = Success, 0 = Failed, null/undefined = Pending
+    if (statusRaw === 1 || statusRaw === '1' || statusRaw === 'Success') {
+      status = 'Success';
+    } else if (statusRaw === 0 || statusRaw === '0' || statusRaw === 'Failed') {
+      status = 'Failed';
+    } else if (!statusRaw || statusRaw === 'null' || statusRaw === 'undefined') {
+      status = blockNumber && blockNumber !== 'Pending' ? 'Success' : 'Pending';
+    } else {
+      status = String(statusRaw);
+    }
+    console.log(`[SDK] Transaction status determined:`, status);
   } catch (e) {
-    // Status might not be available
+    console.warn(`[SDK] Could not get transaction status:`, e);
+    // If status call fails, try to infer from transaction data
+    if (blockNumber && blockNumber !== 'Pending') {
+      status = 'Success';
+    } else {
+      status = 'Pending';
+    }
+  }
+  
+  // Format value properly - if it's a number string, add CRO
+  let formattedValue = value;
+  if (value !== '0' && value !== 'N/A' && !value.includes(' ')) {
+    try {
+      const numValue = parseFloat(value);
+      if (numValue > 0) {
+        formattedValue = numValue.toFixed(6) + ' CRO';
+      }
+    } catch (e) {
+      // Keep original value
+    }
   }
   
   return `Transaction details for hash ${hash}:\n` +
          `- Status: ${status}\n` +
-         `- Block: ${tx.blockNumber || 'Pending'}\n` +
-         `- From: ${tx.from || 'N/A'}\n` +
-         `- To: ${tx.to || 'N/A'}\n` +
-         `- Value: ${tx.value || '0'}\n` +
-         `- Gas: ${tx.gas || 'N/A'}\n` +
-         `\nFull details: https://testnet.cronoscan.com/tx/${hash}`;
+         `- Block: ${blockNumber}\n` +
+         `- From: ${from}\n` +
+         `- To: ${to}\n` +
+         `- Value: ${formattedValue}\n` +
+         `- Gas Used: ${gasUsed}\n` +
+         (gasPrice !== 'N/A' ? `- Gas Price: ${gasPrice}\n` : '') +
+         `\nFull details: https://explorer.cronos.org/testnet/tx/${hash}`;
 }
 
 /**
@@ -1009,6 +1165,866 @@ async function createWalletViaSDK(): Promise<string> {
 }
 
 /**
+ * Get all tickers from Crypto.com Exchange using SDK Exchange module
+ * Example: "Get all tickers" -> returns all available trading pairs
+ */
+export async function getAllTickersViaSDK(): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Exchange } = sdk;
+  
+  if (!Exchange) {
+    throw new Error("Exchange module not available in SDK");
+  }
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Exchange.getAllTickers) to get all tickers`);
+  
+  try {
+    const tickers = await Exchange.getAllTickers();
+    console.log(`[SDK] ✅ All tickers fetched via SDK`);
+    
+    if (tickers && tickers.data && Array.isArray(tickers.data) && tickers.data.length > 0) {
+      let result = `Here are the current tickers available on Crypto.com Exchange:\n\n`;
+      
+      // Format first 20 tickers (to avoid overwhelming response)
+      const tickerData = tickers.data as any[];
+      const displayCount = Math.min(20, tickerData.length);
+      tickerData.slice(0, displayCount).forEach((ticker: any, index: number) => {
+        result += `${index + 1}. **${ticker.instrument_name || ticker.instrument || 'N/A'}**\n`;
+        if (ticker.last_price) result += `   - Last Price: $${parseFloat(String(ticker.last_price)).toFixed(2)}\n`;
+        if (ticker.high_price_24h) result += `   - High (24h): $${parseFloat(String(ticker.high_price_24h)).toFixed(2)}\n`;
+        if (ticker.low_price_24h) result += `   - Low (24h): $${parseFloat(String(ticker.low_price_24h)).toFixed(2)}\n`;
+        if (ticker.base_volume_24h) result += `   - Volume (24h): ${parseFloat(String(ticker.base_volume_24h)).toFixed(2)}\n`;
+        if (ticker.price_change_percent_24h) {
+          const change = parseFloat(String(ticker.price_change_percent_24h));
+          const changeSymbol = change >= 0 ? '+' : '';
+          result += `   - Change (24h): ${changeSymbol}${change.toFixed(2)}%\n`;
+        }
+        result += `\n`;
+      });
+      
+      if (tickerData.length > displayCount) {
+        result += `\n... and ${tickerData.length - displayCount} more tickers available.\n`;
+      }
+      
+      if (tickerData.length > displayCount) {
+        result += `To get ticker information for a specific instrument, ask: "What's the ticker information of <instrument_name>"\n`;
+      }
+      
+      return result;
+    }
+    
+    return `No tickers found. Response: ${JSON.stringify(tickers, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Exchange.getAllTickers():`, error);
+    
+    // If SDK doesn't have getAllTickers method, try alternative
+    if (error.message && (error.message.includes('getAllTickers') || error.message.includes('not a function'))) {
+      // Try alternative method name
+      try {
+        const tickers = await Exchange.getTickers();
+        console.log(`[SDK] ✅ All tickers fetched via Exchange.getTickers()`);
+        return formatTickersResponse(tickers);
+      } catch (altError) {
+        return `⚠️ Exchange.getAllTickers() method not available in SDK version.\n` +
+               `Error: ${error.message || 'Unknown error'}\n\n` +
+               `💡 Alternative: Use REST API endpoint: https://api.crypto.com/v2/public/get-ticker`;
+      }
+    }
+    
+    throw new Error(`Failed to get all tickers: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get ticker by instrument name using SDK Exchange module
+ * Example: "What's the ticker information of BTC_USDT"
+ */
+export async function getTickerByInstrumentViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Exchange } = sdk;
+  
+  if (!Exchange) {
+    throw new Error("Exchange module not available in SDK");
+  }
+  
+  // Extract instrument name from query
+  // Patterns: "ticker information of BTC_USDT", "ticker for ETH_USD", etc.
+  const instrumentMatch = query.match(/(?:ticker|instrument|pair).*?(?:of|for|:)\s*([A-Z0-9_]+)/i) ||
+                          query.match(/([A-Z0-9_]+_[A-Z0-9_]+)/);
+  
+  if (!instrumentMatch) {
+    throw new Error("Could not parse instrument name from query. Format: 'What's the ticker information of BTC_USDT'");
+  }
+  
+  const instrumentName = instrumentMatch[1].toUpperCase();
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Exchange.getTickerByInstrument) for: ${instrumentName}`);
+  
+  try {
+    const ticker = await Exchange.getTickerByInstrument(instrumentName);
+    console.log(`[SDK] ✅ Ticker fetched via SDK`);
+    
+    if (ticker && ticker.data) {
+      const data = ticker.data;
+      return `Here is the ticker information for the **${instrumentName}** trading pair:\n\n` +
+             `- **Instrument Name:** ${instrumentName}\n` +
+             (data.high_price_24h ? `- **High Price (24h):** $${parseFloat(data.high_price_24h).toFixed(2)}\n` : '') +
+             (data.low_price_24h ? `- **Low Price (24h):** $${parseFloat(data.low_price_24h).toFixed(2)}\n` : '') +
+             (data.last_price ? `- **Last Price:** $${parseFloat(data.last_price).toFixed(2)}\n` : '') +
+             (data.base_volume_24h ? `- **24h Volume:** ${parseFloat(data.base_volume_24h).toFixed(2)}\n` : '') +
+             (data.quote_volume_24h ? `- **24h Volume Value:** $${parseFloat(data.quote_volume_24h).toFixed(2)}\n` : '') +
+             (data.price_change_percent_24h ? `- **Price Change (24h):** ${parseFloat(data.price_change_percent_24h).toFixed(2)}%\n` : '') +
+             (data.best_bid ? `- **Best Bid:** $${parseFloat(data.best_bid).toFixed(2)}\n` : '') +
+             (data.best_ask ? `- **Best Ask:** $${parseFloat(data.best_ask).toFixed(2)}\n` : '') +
+             (data.open_interest ? `- **Open Interest:** ${parseFloat(data.open_interest).toFixed(2)}\n` : '') +
+             (data.timestamp ? `- **Timestamp:** ${new Date(data.timestamp).toISOString()}\n` : '') +
+             `\nIf you need further information, feel free to ask!`;
+    }
+    
+    return `Ticker information for ${instrumentName}: ${JSON.stringify(ticker, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Exchange.getTickerByInstrument():`, error);
+    
+    // Try alternative method names
+    if (error.message && error.message.includes('not a function')) {
+      try {
+        const ticker = await Exchange.getTicker(instrumentName);
+        return formatTickerResponse(instrumentName, ticker);
+      } catch (altError) {
+        // Fallback to REST API
+        try {
+          const response = await fetch(`https://api.crypto.com/v2/public/get-ticker?instrument_name=${instrumentName}`);
+          const data = await response.json() as any;
+          if (data.result && data.result.data && Array.isArray(data.result.data) && data.result.data[0]) {
+            return formatTickerResponse(instrumentName, data.result.data[0]);
+          }
+        } catch (restError) {
+          // Ignore REST fallback error
+        }
+      }
+    }
+    
+    throw new Error(`Failed to get ticker for ${instrumentName}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Helper function to format tickers response
+ */
+function formatTickersResponse(tickers: any): string {
+  if (!tickers || !tickers.data || !Array.isArray(tickers.data)) {
+    return `No tickers found. Response: ${JSON.stringify(tickers, null, 2)}`;
+  }
+  
+  let result = `Here are the current tickers available on Crypto.com Exchange:\n\n`;
+  const displayCount = Math.min(20, tickers.data.length);
+  
+  tickers.data.slice(0, displayCount).forEach((ticker: any, index: number) => {
+    result += `${index + 1}. **${ticker.instrument_name || ticker.instrument || 'N/A'}**\n`;
+    if (ticker.last_price) result += `   - Last Price: $${parseFloat(ticker.last_price).toFixed(2)}\n`;
+    if (ticker.high_price_24h) result += `   - High (24h): $${parseFloat(ticker.high_price_24h).toFixed(2)}\n`;
+    if (ticker.low_price_24h) result += `   - Low (24h): $${parseFloat(ticker.low_price_24h).toFixed(2)}\n`;
+    if (ticker.base_volume_24h) result += `   - Volume (24h): ${parseFloat(ticker.base_volume_24h).toFixed(2)}\n`;
+    result += `\n`;
+  });
+  
+  if (tickers.data.length > displayCount) {
+    result += `\n... and ${tickers.data.length - displayCount} more tickers available.\n`;
+  }
+  
+  return result;
+}
+
+/**
+ * Helper function to format single ticker response
+ */
+function formatTickerResponse(instrumentName: string, ticker: any): string {
+  return `Here is the ticker information for the **${instrumentName}** trading pair:\n\n` +
+         `- **Instrument Name:** ${instrumentName}\n` +
+         (ticker.high_price_24h ? `- **High Price (24h):** $${parseFloat(ticker.high_price_24h).toFixed(2)}\n` : '') +
+         (ticker.low_price_24h ? `- **Low Price (24h):** $${parseFloat(ticker.low_price_24h).toFixed(2)}\n` : '') +
+         (ticker.last_price ? `- **Last Price:** $${parseFloat(ticker.last_price).toFixed(2)}\n` : '') +
+         (ticker.base_volume_24h ? `- **24h Volume:** ${parseFloat(ticker.base_volume_24h).toFixed(2)}\n` : '') +
+         (ticker.price_change_percent_24h ? `- **Price Change (24h):** ${parseFloat(ticker.price_change_percent_24h).toFixed(2)}%\n` : '') +
+         `\nIf you need further information, feel free to ask!`;
+}
+
+/**
+ * Get block by tag using SDK Block module
+ * Example: "Get latest block with detail" -> returns block data
+ */
+export async function getBlockByTagViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Block } = sdk;
+  
+  if (!Block) {
+    throw new Error("Block module not available in SDK");
+  }
+  
+  // Extract tag from query: "latest", "pending", "earliest", or block number
+  let tag = "latest"; // default
+  let txDetail = "false"; // default to transaction hashes only
+  
+  const queryLower = query.toLowerCase();
+  
+  if (queryLower.includes("pending")) {
+    tag = "pending";
+  } else if (queryLower.includes("earliest")) {
+    tag = "earliest";
+  } else if (queryLower.includes("latest")) {
+    tag = "latest";
+  } else {
+    // Check for block number
+    const blockNumberMatch = query.match(/\b(\d+)\b/);
+    if (blockNumberMatch) {
+      tag = blockNumberMatch[1];
+    }
+  }
+  
+  // Check if user wants full transaction details
+  if (queryLower.includes("detail") || queryLower.includes("with detail") || queryLower.includes("full")) {
+    txDetail = "true";
+  }
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Block.getBlockByTag) for tag: ${tag}, txDetail: ${txDetail}`);
+  
+  try {
+    const block = await Block.getBlockByTag(tag, txDetail);
+    console.log(`[SDK] ✅ Block fetched via SDK`);
+    
+    if (block && block.data) {
+      const data = block.data;
+      let result = `The ${tag} block data${txDetail === "true" ? " with details" : ""} is as follows:\n\n`;
+      
+      result += `- **Block Number:** ${data.number || data.blockNumber || 'N/A'}\n`;
+      result += `- **Block Hash:** ${data.hash || 'N/A'}\n`;
+      result += `- **Parent Hash:** ${data.parentHash || 'N/A'}\n`;
+      result += `- **Timestamp:** ${data.timestamp ? new Date(Number(data.timestamp) * 1000).toISOString() : 'N/A'}\n`;
+      result += `- **Transactions Root:** ${data.transactionsRoot || 'N/A'}\n`;
+      result += `- **Receipts Root:** ${data.receiptsRoot || 'N/A'}\n`;
+      result += `- **State Root:** ${data.stateRoot || 'N/A'}\n`;
+      result += `- **Gas Limit:** ${data.gasLimit || 'N/A'}\n`;
+      result += `- **Gas Used:** ${data.gasUsed || 'N/A'}\n`;
+      if (data.miner) result += `- **Miner:** ${data.miner}\n`;
+      if (data.difficulty) result += `- **Difficulty:** ${data.difficulty}\n`;
+      if (data.totalDifficulty) result += `- **Total Difficulty:** ${data.totalDifficulty}\n`;
+      if (data.gasPrice) result += `- **Gas Price:** ${data.gasPrice}\n`;
+      if (data.baseFeePerGas) result += `- **Base Fee Per Gas:** ${data.baseFeePerGas}\n`;
+      if (data.nonce) result += `- **Nonce:** ${data.nonce}\n`;
+      
+      // Transactions
+      if (data.transactions && Array.isArray(data.transactions) && data.transactions.length > 0) {
+        result += `\n**Transactions:**\n`;
+        const displayCount = Math.min(5, data.transactions.length);
+        data.transactions.slice(0, displayCount).forEach((tx: any, index: number) => {
+          if (txDetail === "true" && typeof tx === 'object') {
+            // Full transaction object
+            result += `\n${index + 1}. Transaction:\n`;
+            result += `   - **Hash:** ${tx.hash || 'N/A'}\n`;
+            result += `   - **From:** ${tx.from || 'N/A'}\n`;
+            result += `   - **To:** ${tx.to || 'N/A'}\n`;
+            result += `   - **Value:** ${tx.value || '0'}\n`;
+            result += `   - **Gas:** ${tx.gas || 'N/A'}\n`;
+            if (tx.transactionIndex !== undefined) result += `   - **Transaction Index:** ${tx.transactionIndex}\n`;
+            if (tx.maxFeePerGas) result += `   - **Max Fee Per Gas:** ${tx.maxFeePerGas}\n`;
+            if (tx.maxPriorityFeePerGas) result += `   - **Max Priority Fee Per Gas:** ${tx.maxPriorityFeePerGas}\n`;
+          } else {
+            // Transaction hash only
+            result += `   ${index + 1}. ${tx}\n`;
+          }
+        });
+        if (data.transactions.length > displayCount) {
+          result += `\n... and ${data.transactions.length - displayCount} more transactions.\n`;
+        }
+      } else {
+        result += `\n**Transactions:** None\n`;
+      }
+      
+      result += `\nIf you need further information or specific details, please let me know!`;
+      return result;
+    }
+    
+    return `Block data for ${tag}: ${JSON.stringify(block, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Block.getBlockByTag():`, error);
+    throw new Error(`Failed to get block by tag ${tag}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get whitelisted tokens for a DeFi protocol using SDK Defi module
+ * Example: "Get whitelisted tokens of protocol VVS"
+ */
+export async function getWhitelistedTokensViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Defi } = sdk;
+  
+  if (!Defi) {
+    throw new Error("Defi module not available in SDK");
+  }
+  
+  // Extract protocol name from query
+  const protocolMatch = query.match(/protocol\s+(\w+)/i) || query.match(/(?:VVS|H2|defi)\s+protocol/i);
+  if (!protocolMatch) {
+    throw new Error("Could not parse protocol name from query. Format: 'Get whitelisted tokens of protocol VVS'");
+  }
+  
+  const protocol = protocolMatch[1]?.toUpperCase() || (query.toUpperCase().includes('VVS') ? 'VVS' : 'H2');
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Defi.getWhitelistedTokens) for protocol: ${protocol}`);
+  
+  try {
+    const tokens = await Defi.getWhitelistedTokens(protocol);
+    console.log(`[SDK] ✅ Whitelisted tokens fetched via SDK`);
+    
+    if (tokens && tokens.data && Array.isArray(tokens.data) && tokens.data.length > 0) {
+      let result = `Here are the whitelisted tokens for the **${protocol}** protocol:\n\n`;
+      
+      tokens.data.forEach((token: any, index: number) => {
+        result += `${index + 1}. **${token.name || token.symbol || 'Unknown Token'}**\n`;
+        if (token.address) {
+          const explorerLink = `https://explorer.cronos.org/testnet/address/${token.address}`;
+          result += `   - Address: [${token.address}](${explorerLink})\n`;
+        }
+        if (token.decimal !== undefined) result += `   - Decimal: ${token.decimal}\n`;
+        if (token.swappable !== undefined) result += `   - Swappable: ${token.swappable}\n`;
+        if (token.logo || token.img) {
+          result += `   - Logo: ![${token.name || token.symbol}](${token.logo || token.img})\n`;
+        }
+        result += `\n`;
+      });
+      
+      result += `Feel free to ask if you need more information about any specific token!`;
+      return result;
+    }
+    
+    return `No whitelisted tokens found for ${protocol}. Response: ${JSON.stringify(tokens, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Defi.getWhitelistedTokens():`, error);
+    throw new Error(`Failed to get whitelisted tokens for ${protocol}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get all farms for a DeFi protocol using SDK Defi module
+ * Example: "Get all farms of protocol VVS"
+ */
+export async function getAllFarmsViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Defi } = sdk;
+  
+  if (!Defi) {
+    throw new Error("Defi module not available in SDK");
+  }
+  
+  // Extract protocol name from query
+  const protocolMatch = query.match(/protocol\s+(\w+)/i) || query.match(/(?:VVS|H2|defi)\s+protocol/i);
+  if (!protocolMatch) {
+    throw new Error("Could not parse protocol name from query. Format: 'Get all farms of protocol VVS'");
+  }
+  
+  const protocol = protocolMatch[1]?.toUpperCase() || (query.toUpperCase().includes('VVS') ? 'VVS' : 'H2');
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Defi.getAllFarms) for protocol: ${protocol}`);
+  
+  try {
+    const farms = await Defi.getAllFarms(protocol);
+    console.log(`[SDK] ✅ All farms fetched via SDK`);
+    
+    if (farms && farms.data && Array.isArray(farms.data) && farms.data.length > 0) {
+      let result = `Here are the farms available for the **${protocol}** protocol:\n\n`;
+      
+      farms.data.forEach((farm: any, index: number) => {
+        result += `${index + 1}. **${farm.symbol || farm.farmSymbol || 'Unknown Farm'}**\n`;
+        if (farm.lpAddress) result += `   - LP Address: ${farm.lpAddress}\n`;
+        if (farm.baseAPR !== undefined) result += `   - Base APR: ${farm.baseAPR}%\n`;
+        if (farm.baseAPY !== undefined) result += `   - Base APY: ${farm.baseAPY}%\n`;
+        if (farm.rewardStartDate) result += `   - Reward Start Date: ${farm.rewardStartDate}\n`;
+        if (farm.chain) result += `   - Chain: ${farm.chain}\n`;
+        result += `\n`;
+      });
+      
+      return result;
+    }
+    
+    return `No farms found for ${protocol}. Response: ${JSON.stringify(farms, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Defi.getAllFarms():`, error);
+    throw new Error(`Failed to get all farms for ${protocol}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Get farm by symbol for a DeFi protocol using SDK Defi module
+ * Example: "Get farm of protocol VVS symbol CRO-GOLD"
+ */
+export async function getFarmBySymbolViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Defi } = sdk;
+  
+  if (!Defi) {
+    throw new Error("Defi module not available in SDK");
+  }
+  
+  // Extract protocol and symbol from query
+  const protocolMatch = query.match(/protocol\s+(\w+)/i) || query.match(/(?:VVS|H2|defi)\s+protocol/i);
+  const symbolMatch = query.match(/symbol\s+([A-Z0-9-]+)/i) || query.match(/([A-Z0-9-]+-[A-Z0-9-]+)/);
+  
+  if (!protocolMatch || !symbolMatch) {
+    throw new Error("Could not parse protocol or symbol from query. Format: 'Get farm of protocol VVS symbol CRO-GOLD'");
+  }
+  
+  const protocol = protocolMatch[1]?.toUpperCase() || (query.toUpperCase().includes('VVS') ? 'VVS' : 'H2');
+  const symbol = symbolMatch[1]?.toUpperCase();
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (Defi.getFarmBySymbol) for protocol: ${protocol}, symbol: ${symbol}`);
+  
+  try {
+    const farm = await Defi.getFarmBySymbol(protocol, symbol);
+    console.log(`[SDK] ✅ Farm fetched via SDK`);
+    
+    if (farm && farm.data) {
+      const data = farm.data;
+      let result = `Here is the information for the farm with the symbol **${symbol}** in the **${protocol}** protocol:\n\n`;
+      
+      if (data.farmId !== undefined) result += `- **Farm ID:** ${data.farmId}\n`;
+      if (data.lpSymbol) result += `- **LP Symbol:** ${data.lpSymbol}\n`;
+      if (data.lpAddress) {
+        const explorerLink = `https://explorer.cronos.org/testnet/address/${data.lpAddress}`;
+        result += `- **LP Address:** [${data.lpAddress}](${explorerLink})\n`;
+      }
+      
+      if (data.token) {
+        result += `- **Token:**\n`;
+        if (data.token.symbol) result += `  - Symbol: ${data.token.symbol}\n`;
+        if (data.token.address) {
+          const tokenExplorerLink = `https://explorer.cronos.org/testnet/address/${data.token.address}`;
+          result += `  - Address: [${data.token.address}](${tokenExplorerLink})\n`;
+        }
+      }
+      
+      if (data.quoteToken) {
+        result += `- **Quote Token:**\n`;
+        if (data.quoteToken.symbol) result += `  - Symbol: ${data.quoteToken.symbol}\n`;
+        if (data.quoteToken.address) {
+          const quoteExplorerLink = `https://explorer.cronos.org/testnet/address/${data.quoteToken.address}`;
+          result += `  - Address: [${data.quoteToken.address}](${quoteExplorerLink})\n`;
+        }
+      }
+      
+      if (data.version) result += `- **Version:** ${data.version}\n`;
+      if (data.rewardStartDate) result += `- **Reward Start Date:** ${data.rewardStartDate}\n`;
+      if (data.finished !== undefined) result += `- **Finished:** ${data.finished}\n`;
+      if (data.migrated !== undefined) result += `- **Migrated:** ${data.migrated}\n`;
+      if (data.boostEnabled !== undefined) result += `- **Boost Enabled:** ${data.boostEnabled}\n`;
+      if (data.autoHarvestEnabled !== undefined) result += `- **Auto Harvest Enabled:** ${data.autoHarvestEnabled}\n`;
+      if (data.chain) result += `- **Chain:** ${data.chain}\n`;
+      if (data.chainId) result += `- **Chain ID:** ${data.chainId}\n`;
+      if (data.baseAPR !== undefined) result += `- **Base APR:** ${data.baseAPR}%\n`;
+      if (data.baseAPY !== undefined) result += `- **Base APY:** ${data.baseAPY}%\n`;
+      if (data.lpAPR !== undefined) result += `- **LP APR:** ${data.lpAPR}%\n`;
+      if (data.lpAPY !== undefined) result += `- **LP APY:** ${data.lpAPY}%\n`;
+      
+      result += `\nIf you need further assistance or more details, feel free to ask!`;
+      return result;
+    }
+    
+    return `Farm information for ${symbol} in ${protocol}: ${JSON.stringify(farm, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling Defi.getFarmBySymbol():`, error);
+    throw new Error(`Failed to get farm ${symbol} for ${protocol}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Resolve CronosID name to address using SDK CronosID module
+ * Example: "Resolve CronosId name xyz.cro"
+ */
+export async function resolveCronosIdNameViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { CronosID } = sdk;
+  
+  if (!CronosID) {
+    throw new Error("CronosID module not available in SDK");
+  }
+  
+  // Extract CronosID name from query (e.g., "xyz.cro")
+  const nameMatch = query.match(/([\w-]+\.cro)/i) || query.match(/name\s+([\w-]+\.cro)/i);
+  if (!nameMatch) {
+    throw new Error("Could not parse CronosID name from query. Format: 'Resolve CronosId name xyz.cro'");
+  }
+  
+  const name = nameMatch[1];
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (CronosID.resolveName) for name: ${name}`);
+  
+  try {
+    const result = await CronosID.resolveName(name);
+    console.log(`[SDK] ✅ CronosID resolved via SDK`);
+    
+    if (result && result.data && result.data.address) {
+      return `The CronosId name **${name}** has been successfully resolved to the blockchain address: **${result.data.address}**`;
+    }
+    
+    return `CronosID resolution for ${name}: ${JSON.stringify(result, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling CronosID.resolveName():`, error);
+    throw new Error(`Failed to resolve CronosID ${name}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Lookup CronosID for an address using SDK CronosID module
+ * Example: "Lookup CronosId for 0x..."
+ */
+export async function lookupCronosIdAddressViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { CronosID } = sdk;
+  
+  if (!CronosID) {
+    throw new Error("CronosID module not available in SDK");
+  }
+  
+  // Extract address from query
+  const addressMatch = query.match(/0x[a-fA-F0-9]{40}/);
+  if (!addressMatch) {
+    throw new Error("Could not parse address from query. Format: 'Lookup CronosId for 0x...'");
+  }
+  
+  const address = addressMatch[0];
+  
+  console.log(`[SDK] Using Developer Platform Client SDK (CronosID.lookupAddress) for address: ${address}`);
+  
+  try {
+    const result = await CronosID.lookupAddress(address);
+    console.log(`[SDK] ✅ CronosID lookup completed via SDK`);
+    
+    if (result && result.data && result.data.name) {
+      return `The CronosId for the address **${address}** is **${result.data.name}**`;
+    }
+    
+    return `CronosID lookup for ${address}: ${JSON.stringify(result, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[SDK] ❌ Error calling CronosID.lookupAddress():`, error);
+    throw new Error(`Failed to lookup CronosID for ${address}: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Wrap native tokens into wrapped tokens using SDK Token module
+ * Example: "Wrap 10 CRO token" -> wraps 10 CRO into WCRO
+ */
+export async function wrapTokenViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Token } = sdk;
+  
+  // Check if provider is configured (required for Token.wrap() magic links)
+  const provider = process.env.CRYPTO_COM_PROVIDER || process.env.CRYPTO_COM_SSO_WALLET_URL;
+  if (!provider) {
+    console.warn(`[Wrap] ⚠️ CRYPTO_COM_PROVIDER or CRYPTO_COM_SSO_WALLET_URL not set`);
+    console.warn(`[Wrap] ⚠️ Token.wrap() requires provider URL (AI Magic Signer app)`);
+    console.warn(`[Wrap] ⚠️ Please run: git clone https://github.com/crypto-com/cdc-ai-agent-signer-app && cd cdc-ai-agent-signer-app && npm install && npm run dev`);
+    console.warn(`[Wrap] ⚠️ Then set CRYPTO_COM_PROVIDER=http://localhost:5173 in your .env file`);
+  }
+  
+  // Parse wrap request: "Wrap 10 CRO token" or "wrap 5 CRO"
+  const wrapMatch = query.match(/wrap\s+(\d+(?:\.\d+)?)\s+(\w+)/i);
+  
+  if (!wrapMatch) {
+    throw new Error("Could not parse wrap request. Format: 'Wrap X CRO token' or 'wrap X CRO'");
+  }
+  
+  const amount = parseFloat(wrapMatch[1]);
+  const tokenSymbol = wrapMatch[2].toUpperCase();
+  
+  // Validate it's a native token (CRO, TCRO, etc.)
+  const isNativeToken = tokenSymbol === 'CRO' || tokenSymbol === 'TCRO' || tokenSymbol === 'NATIVE';
+  
+  if (!isNativeToken) {
+    throw new Error(`Wrapping is only available for native tokens (CRO, TCRO). You specified: ${tokenSymbol}`);
+  }
+  
+  console.log(`[Wrap] Attempting SDK Token.wrap() for native token:`, {
+    amount,
+    tokenSymbol,
+    providerConfigured: !!provider,
+  });
+  
+  try {
+    // Call SDK's Token.wrap() method
+    // According to SDK docs: Token.wrap({ amount: number })
+    const wrapResponse = await Token.wrap({
+      amount: amount
+    });
+    
+    console.log(`[Wrap] ✅ Token.wrap() response:`, wrapResponse);
+    
+    if (wrapResponse && wrapResponse.data) {
+      // Check if it returns a magic link (like transfer does)
+      if (wrapResponse.data.url || wrapResponse.data.magicLink) {
+        const magicLink = wrapResponse.data.url || wrapResponse.data.magicLink;
+        // Format as markdown link - ensure proper markdown syntax
+        return `📦 **Token Wrap Request Created**\n\n` +
+               `**Amount:** ${amount} ${tokenSymbol}\n` +
+               `**Action:** Wrap ${amount} native ${tokenSymbol} → ${amount} WCRO (Wrapped CRO)\n` +
+               `**Contract:** \`0x6a3173618859C7cd40fAF6921b5E9eB6A76f1fD4\` (WCRO on Cronos Testnet)\n\n` +
+               `🔗 **Complete Transaction:**\n\n` +
+               `[👉 Click here to wrap your ${amount} ${tokenSymbol} → ${amount} WCRO](${magicLink})\n\n` +
+               `⚠️ **Important:**\n` +
+               `- You need sufficient ${tokenSymbol} balance (${amount} ${tokenSymbol} + gas fees)\n` +
+               `- The link opens in a new tab where you'll confirm in your wallet\n` +
+               `- Once confirmed, your ${amount} native ${tokenSymbol} becomes ${amount} WCRO (ERC-20 compatible)`;
+      }
+      
+      // If it returns transaction details directly
+      if (wrapResponse.data.transactionHash || wrapResponse.data.txHash) {
+        const txHash = wrapResponse.data.transactionHash || wrapResponse.data.txHash;
+        return `📦 Token Wrap Transaction Submitted:\n` +
+               `- Amount: ${amount} ${tokenSymbol}\n` +
+               `- Transaction Hash: ${txHash}\n` +
+               `- Status: Pending\n\n` +
+               `✅ Your ${tokenSymbol} will be wrapped into WCRO once the transaction is confirmed.`;
+      }
+      
+      // Generic response
+      return `📦 Token Wrap Response:\n` +
+             `- Amount: ${amount} ${tokenSymbol}\n` +
+             `- Response: ${JSON.stringify(wrapResponse.data, null, 2)}`;
+    }
+    
+    return `📦 Token Wrap Request Processed:\n` +
+           `- Amount: ${amount} ${tokenSymbol}\n` +
+           `- Response: ${JSON.stringify(wrapResponse, null, 2)}`;
+    
+  } catch (error: any) {
+    console.error(`[Wrap] ❌ Error calling Token.wrap():`, error);
+    
+    // If SDK doesn't have wrap method, provide helpful error
+    if (error.message && error.message.includes('wrap') && error.message.includes('not a function')) {
+      return `⚠️ Token.wrap() method not available in SDK version.\n` +
+             `📋 Wrap Request Details:\n` +
+             `- Amount: ${amount} ${tokenSymbol}\n` +
+             `- Action: Wrap native ${tokenSymbol} into wrapped ${tokenSymbol} (WCRO)\n\n` +
+             `💡 To wrap tokens manually:\n` +
+             `1. Connect to WCRO contract: 0x5C7F8A570d578ED84E63fdFA7b1eE72dEae1AE23 (Cronos Testnet)\n` +
+             `2. Call deposit() function with ${amount} CRO as value\n` +
+             `3. Transaction will wrap your CRO into WCRO`;
+    }
+    
+    throw new Error(`Failed to wrap token: ${error.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Build transfer transaction using SDK's Token.transfer() to demonstrate magic links
+ * 
+ * This function will actually call Token.transfer() to show what the magic link looks like.
+ * 
+ * ⚠️ NOTE: SDK's Token.transfer() requires a private key or returns a magic link
+ *    - Magic link: URL that user must visit to complete transfer
+ *    - This breaks the seamless chat experience
+ * 
+ * For production, we'd build transactions with ethers (like swaps) instead.
+ */
+async function buildTransferTransactionViaSDK(query: string): Promise<string> {
+  const sdk = initDeveloperPlatformSDK();
+  if (!sdk) {
+    throw new Error("Developer Platform SDK not available");
+  }
+  
+  const { Token } = sdk;
+  
+  // Parse transfer request: "transfer 5 CRO to 0x..." or "send 100 USDC to 0x..."
+  const amountMatch = query.match(/(?:transfer|send)\s+(\d+(?:\.\d+)?)\s+(\w+)/i);
+  const addressMatch = query.match(/0x[a-fA-F0-9]{40}/g);
+  
+  if (!amountMatch || !addressMatch || addressMatch.length < 1) {
+    throw new Error("Could not parse transfer request. Format: 'transfer X TOKEN to 0xAddress' or 'send X TOKEN to 0xAddress'");
+  }
+  
+  const amount = parseFloat(amountMatch[1]);
+  const tokenSymbol = amountMatch[2].toUpperCase();
+  const toAddress = addressMatch[addressMatch.length - 1]; // Last address is recipient
+  
+  // Check if it's a token transfer (ERC-20) or native transfer
+  const isNativeToken = tokenSymbol === 'CRO' || tokenSymbol === 'TCRO' || tokenSymbol === 'NATIVE';
+  
+  console.log(`[Transfer] Attempting SDK Token.transfer() to demonstrate magic link:`, {
+    amount,
+    tokenSymbol,
+    toAddress,
+    isNativeToken,
+  });
+  
+  try {
+    let transferResponse;
+    
+    if (isNativeToken) {
+      // Native CRO transfer
+      console.log(`[Transfer] Calling Token.transfer() for native CRO...`);
+      transferResponse = await Token.transfer({
+        to: toAddress,
+        amount: amount
+      });
+    } else {
+      // ERC-20 token transfer - need contract address
+      // For demo, we'll try without contract address first to see the error/magic link structure
+      console.log(`[Transfer] Calling Token.transfer() for ERC-20 token (may need contract address)...`);
+      
+      // Try to find contract address in query
+      const contractMatch = query.match(/contract[:\s]+(0x[a-fA-F0-9]{40})/i);
+      const contractAddress = contractMatch ? contractMatch[1] : undefined;
+      
+      if (contractAddress) {
+        transferResponse = await Token.transfer({
+          to: toAddress,
+          amount: amount,
+          contractAddress: contractAddress
+        });
+      } else {
+        // Return info about needing contract address, but also show what magic link structure looks like
+        return `📋 Transfer Request Parsed:\n` +
+               `- Type: ERC-20 token transfer\n` +
+               `- Token: ${tokenSymbol}\n` +
+               `- Amount: ${amount}\n` +
+               `- To: ${toAddress}\n\n` +
+               `⚠️ Missing: Token contract address is required for ERC-20 transfers.\n` +
+               `Please provide the contract address: "transfer ${amount} ${tokenSymbol} to ${toAddress} contract: 0x..."\n\n` +
+               `🔗 Magic Link Demo:\n` +
+               `When SDK's Token.transfer() is called, it returns:\n` +
+               `\`\`\`json\n` +
+               `{\n` +
+               `  "status": "Success",\n` +
+               `  "data": {\n` +
+               `    "magicLink": "https://provider/transfer-token/..."\n` +
+               `  }\n` +
+               `}\n` +
+               `\`\`\`\n\n` +
+               `The user must visit this magic link URL to complete the transfer.\n` +
+               `This requires leaving the chat interface - not ideal for seamless UX!`;
+      }
+    }
+    
+    console.log(`[Transfer] ✅ SDK Token.transfer() response:`, JSON.stringify(transferResponse, null, 2));
+    
+    // Parse the response
+    const responseData = transferResponse?.data || transferResponse;
+    const magicLink = responseData?.magicLink || responseData?.magic_link || responseData?.link;
+    const status = transferResponse?.status || responseData?.status || 'Unknown';
+    
+    if (magicLink) {
+      return `🔗 Magic Link Generated by SDK's Token.transfer():\n\n` +
+             `**Transfer Details:**\n` +
+             `- Type: ${isNativeToken ? 'Native CRO' : `ERC-20 ${tokenSymbol}`}\n` +
+             `- Amount: ${amount} ${tokenSymbol}\n` +
+             `- To: ${toAddress}\n` +
+             `- Status: ${status}\n\n` +
+             `**Magic Link:**\n` +
+             `${magicLink}\n\n` +
+             `⚠️ **How Magic Links Work:**\n` +
+             `1. SDK returns a URL (magic link)\n` +
+             `2. User must click/visit this URL\n` +
+             `3. User is redirected to an external page\n` +
+             `4. User completes the transfer on that page\n` +
+             `5. User returns to chat (if they remember!)\n\n` +
+             `❌ **Problems with Magic Links:**\n` +
+             `- User leaves the chat interface\n` +
+             `- Not seamless - breaks the flow\n` +
+             `- Requires external browser navigation\n` +
+             `- Poor UX for agent-driven workflows\n\n` +
+             `✅ **Better Approach (like swaps):**\n` +
+             `- Build transaction with ethers.js\n` +
+             `- Return transaction data to frontend\n` +
+             `- User signs directly in wallet\n` +
+             `- Execute transaction\n` +
+             `- Everything stays in chat! 🎉`;
+    } else {
+      // Response doesn't have magic link - might be different structure
+      return `📋 SDK Token.transfer() Response:\n\n` +
+             `**Status:** ${status}\n` +
+             `**Response Structure:**\n` +
+             `\`\`\`json\n` +
+             `${JSON.stringify(transferResponse, null, 2)}\n` +
+             `\`\`\`\n\n` +
+             `**Transfer Details:**\n` +
+             `- Type: ${isNativeToken ? 'Native CRO' : `ERC-20 ${tokenSymbol}`}\n` +
+             `- Amount: ${amount} ${tokenSymbol}\n` +
+             `- To: ${toAddress}\n\n` +
+             `Note: No magic link found in response. The SDK might use a different structure or require additional setup.`;
+    }
+  } catch (error: any) {
+    console.error(`[Transfer] ❌ Error calling SDK Token.transfer():`, error);
+    
+    // Return informative error with magic link explanation
+    return `❌ SDK Token.transfer() Error:\n\n` +
+           `**Error:** ${error.message || String(error)}\n\n` +
+           `**Transfer Request:**\n` +
+           `- Type: ${isNativeToken ? 'Native CRO' : `ERC-20 ${tokenSymbol}`}\n` +
+           `- Amount: ${amount} ${tokenSymbol}\n` +
+           `- To: ${toAddress}\n\n` +
+           `**About Magic Links:**\n` +
+           `The SDK's Token.transfer() method typically returns a response like:\n` +
+           `\`\`\`json\n` +
+           `{\n` +
+           `  "status": "Success",\n` +
+           `  "data": {\n` +
+           `    "magicLink": "https://provider/transfer-token/..."\n` +
+           `  }\n` +
+           `}\n` +
+           `\`\`\`\n\n` +
+           `**Why Magic Links Are Problematic:**\n` +
+           `1. User must visit the magic link URL\n` +
+           `2. This takes them outside the chat interface\n` +
+           `3. Not seamless for agent-driven workflows\n` +
+           `4. Better: Build transaction with ethers, sign in wallet (like swaps)`;
+  }
+}
+
+/**
  * Execute blockchain query using Crypto.com SDKs
  * Priority: AI Agent SDK → Developer Platform SDK
  * No RPC fallback - let Gemini/AI handle responses if SDKs can't answer
@@ -1021,22 +2037,43 @@ export async function executeBlockchainQuery(
 ): Promise<string> {
   const queryLower = query.toLowerCase();
   
-  // Check if this query type is well-supported by AI Agent SDK
-  // AI Agent SDK works best for simple queries like:
-  // - "Get balance of address X"
-  // - "Get latest block"
-  // - "Get transaction by hash"
-  // It struggles with complex queries like:
-  // - Token balance queries with contract addresses
-  // - Specific parameter-heavy queries
+  // Exchange, Defi, and CronosID queries are handled by AI Agent SDK
+  // AI Agent SDK internally uses Developer Platform SDK and provides better formatting
+  // These queries will be processed by AI Agent SDK's built-in handlers
+  // No need to route them directly - let AI Agent SDK handle them
+  
+  // Block queries - can use either AI Agent SDK or Developer Platform SDK Block module
   // Check if query is for specific block number (will fail with AI Agent SDK due to Explorer API limitation)
   const isSpecificBlockNumber = queryLower.includes('block') && query.match(/\b\d{6,}\b/); // Block with 6+ digit number (specific block)
   const isLatestBlock = queryLower.includes('latest block') || (queryLower.includes('block') && (queryLower.includes('latest') || queryLower.includes('current') || queryLower.includes('most recent')));
   
+  // Try Developer Platform SDK Block module for block queries (supports detail parameter)
+  if (queryLower.includes('block') && (queryLower.includes('latest') || queryLower.includes('pending') || queryLower.includes('earliest') || queryLower.includes('get') || queryLower.includes('detail'))) {
+    console.log("[SDK] Block query detected - trying Developer Platform SDK (Block.getBlockByTag) first...");
+    try {
+      return await getBlockByTagViaSDK(query);
+    } catch (blockError) {
+      console.log("[SDK] Block module failed, will try AI Agent SDK or RPC fallback...");
+      // Continue to AI Agent SDK or RPC fallback below
+    }
+  }
+  
+  // Check for Exchange, Defi, CronosID queries - these should use AI Agent SDK
+  const isExchangeQuery = (queryLower.includes('get all tickers') || (queryLower.includes('all tickers') && queryLower.includes('get'))) ||
+                          (queryLower.includes('ticker') && (queryLower.includes('information') || queryLower.includes('of') || queryLower.includes('for')));
+  const isDefiQuery = (queryLower.includes('whitelisted tokens') && queryLower.includes('protocol')) ||
+                      (queryLower.includes('all farms') && queryLower.includes('protocol')) ||
+                      (queryLower.includes('farm') && queryLower.includes('protocol') && (queryLower.includes('symbol') || queryLower.includes('by')));
+  const isCronosIdQuery = (queryLower.includes('resolve') && queryLower.includes('cronosid') && queryLower.includes('name')) ||
+                          (queryLower.includes('lookup') && queryLower.includes('cronosid') && query.match(/0x[a-fA-F0-9]{40}/));
+  
   const isSimpleQuery = 
     (queryLower.includes('balance') && !queryLower.includes('token') && !query.match(/0x[a-fA-F0-9]{40}.*0x[a-fA-F0-9]{40}/)) || // Simple balance, not token with contract
-    (isLatestBlock) || // Latest block (works with AI Agent SDK)
-    (queryLower.includes('transaction') && query.match(/0x[a-fA-F0-9]{64}/)); // Transaction by hash
+    (isLatestBlock && !queryLower.includes('detail')) || // Latest block without detail (works with AI Agent SDK)
+    (queryLower.includes('transaction') && query.match(/0x[a-fA-F0-9]{64}/)) || // Transaction by hash
+    isExchangeQuery || // Exchange queries (Get all tickers, ticker information)
+    isDefiQuery || // Defi queries (whitelisted tokens, farms)
+    isCronosIdQuery; // CronosID queries (resolve, lookup)
   
   // Count how many addresses are in the query (wallet + token contract = complex)
   const addressMatches = query.match(/0x[a-fA-F0-9]{40}/g);
@@ -1063,20 +2100,34 @@ export async function executeBlockchainQuery(
       console.log(`[SDK] Attempting blockchain query via AI Agent SDK: "${query.substring(0, 50)}..."`);
       console.log(`[SDK] Client type: ${typeof client}, has agent: ${!!client.agent}`);
       
-      const response = await client.agent.generateQuery(query);
+      // For Exchange/Defi/CronosID queries, try generateQuery() first (AI Agent SDK handles these)
+      // Note: The Node.js SDK uses generateQuery(), not interact() (interact() is for Python SDK)
+      let response;
+      if (isExchangeQuery || isDefiQuery || isCronosIdQuery) {
+        const queryType = isExchangeQuery ? 'Exchange' : isDefiQuery ? 'Defi' : 'CronosID';
+        console.log(`[SDK] Using agent.generateQuery() for ${queryType} query via AI Agent SDK...`);
+        response = await client.agent.generateQuery(query);
+      } else {
+        response = await client.agent.generateQuery(query);
+      }
       console.log(`[SDK] ✅ Query successful via AI Agent SDK, response type: ${typeof response}`);
       
       // Check if response indicates an error (403, Failed status, etc.)
       let responseText = "";
-      if (response && response.text) {
-        responseText = response.text;
-      } else if (response && typeof response === 'string') {
+      if (response && typeof response === 'string') {
         responseText = response;
+      } else if (response && response.text) {
+        responseText = response.text;
+      } else if (response && response.response) {
+        responseText = response.response;
+      } else if (response && response.data) {
+        responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2);
       } else {
         responseText = JSON.stringify(response, null, 2);
       }
       
       // Check if the response contains errors (like 403 from Explorer API)
+      // For Exchange/Defi/CronosID queries, if we get a 403, fall back to Developer Platform SDK
       if (response && typeof response === 'object') {
         const responseStr = JSON.stringify(response);
         const has403Error = responseStr.includes('403') || responseStr.includes('Forbidden') || 
@@ -1086,8 +2137,24 @@ export async function executeBlockchainQuery(
         if (has403Error) {
           console.log("[SDK] ⚠️ AI Agent SDK returned success but contains 403 error from Explorer API");
           console.log("[SDK]   This means Explorer API key may not have permission or is rate-limited");
-          console.log("[SDK]   Falling back to RPC/Developer Platform SDK...");
-          // Don't return the error response, let it fall through to fallback
+          if (isExchangeQuery || isDefiQuery || isCronosIdQuery) {
+            console.log("[SDK]   For Exchange/Defi/CronosID queries, falling back to Developer Platform SDK...");
+            // Don't return the error response, let it fall through to fallback
+            throw new Error("AI Agent SDK Explorer API returned 403 Forbidden - falling back to Developer Platform SDK");
+          } else {
+            console.log("[SDK]   Falling back to RPC/Developer Platform SDK...");
+            throw new Error("AI Agent SDK Explorer API returned 403 Forbidden");
+          }
+        }
+      }
+      
+      // Also check responseText for 403 errors (in case response is a string)
+      if (responseText && (responseText.includes('403') || responseText.includes('Forbidden'))) {
+        console.log("[SDK] ⚠️ AI Agent SDK response text contains 403 error");
+        if (isExchangeQuery || isDefiQuery || isCronosIdQuery) {
+          console.log("[SDK]   For Exchange/Defi/CronosID queries, falling back to Developer Platform SDK...");
+          throw new Error("AI Agent SDK Explorer API returned 403 Forbidden - falling back to Developer Platform SDK");
+        } else {
           throw new Error("AI Agent SDK Explorer API returned 403 Forbidden");
         }
       }
@@ -1185,16 +2252,73 @@ export async function executeBlockchainQuery(
       return await queryTokenBalanceViaSDK(query);
     }
     
-    // Token transfer queries
-    if (queryLower.includes('token') && (queryLower.includes('transfer') || queryLower.includes('transfer'))) {
+    // Token transfer queries (read-only - query past transfers)
+    if (queryLower.includes('token') && (queryLower.includes('transfer') || queryLower.includes('transfer')) && 
+        (queryLower.includes('history') || queryLower.includes('list') || queryLower.includes('get') || queryLower.includes('show'))) {
       console.log("[SDK] Trying Developer Platform Client SDK (Token.getTokenTransfers)...");
       return await queryTokenTransfersViaSDK(query);
+    }
+    
+    // Transfer execution requests (build transaction, don't execute)
+    if ((queryLower.includes('transfer') || queryLower.includes('send')) && 
+        queryLower.includes('to') && 
+        !queryLower.includes('history') && !queryLower.includes('list') && !queryLower.includes('get')) {
+      console.log("[SDK] User requested transfer - building transaction details...");
+      return await buildTransferTransactionViaSDK(query);
     }
     
     // Wallet creation queries
     if (queryLower.includes('create') && (queryLower.includes('wallet') || queryLower.includes('address'))) {
       console.log("[SDK] Trying Developer Platform Client SDK (Wallet.create)...");
       return await createWalletViaSDK();
+    }
+    
+    // Token wrapping queries - use Developer Platform SDK directly (not supported by AI Agent SDK)
+    if (queryLower.includes('wrap') && (queryLower.includes('cro') || queryLower.includes('token'))) {
+      console.log("[SDK] Trying Developer Platform Client SDK (Token.wrap)...");
+      return await wrapTokenViaSDK(query);
+    }
+    
+    // Exchange queries - fallback to Developer Platform SDK when AI Agent SDK fails
+    if (isExchangeQuery) {
+      if (queryLower.includes('get all tickers') || (queryLower.includes('all tickers') && queryLower.includes('get'))) {
+        console.log("[SDK] Trying Developer Platform Client SDK (Exchange.getAllTickers) as fallback...");
+        return await getAllTickersViaSDK();
+      } else if (queryLower.includes('ticker') && (queryLower.includes('information') || queryLower.includes('of') || queryLower.includes('for'))) {
+        console.log("[SDK] Trying Developer Platform Client SDK (Exchange.getTickerByInstrument) as fallback...");
+        return await getTickerByInstrumentViaSDK(query);
+      }
+    }
+    
+    // Defi queries - fallback to Developer Platform SDK when AI Agent SDK fails
+    if (isDefiQuery) {
+      if (queryLower.includes('whitelisted tokens') && queryLower.includes('protocol')) {
+        console.log("[SDK] Trying Developer Platform Client SDK (Defi.getWhitelistedTokens) as fallback...");
+        return await getWhitelistedTokensViaSDK(query);
+      } else if (queryLower.includes('all farms') && queryLower.includes('protocol')) {
+        console.log("[SDK] Trying Developer Platform Client SDK (Defi.getAllFarms) as fallback...");
+        return await getAllFarmsViaSDK(query);
+      } else if (queryLower.includes('farm') && queryLower.includes('protocol') && (queryLower.includes('symbol') || queryLower.includes('by'))) {
+        console.log("[SDK] Trying Developer Platform Client SDK (Defi.getFarmBySymbol) as fallback...");
+        return await getFarmBySymbolViaSDK(query);
+      }
+    }
+    
+    // CronosID queries - fallback to Developer Platform SDK when AI Agent SDK fails
+    if (isCronosIdQuery) {
+      if (queryLower.includes('resolve') && queryLower.includes('cronosid') && queryLower.includes('name')) {
+        console.log("[SDK] Trying Developer Platform Client SDK (CronosID.resolve) as fallback...");
+        return await resolveCronosIdNameViaSDK(query);
+      } else if (queryLower.includes('lookup') && queryLower.includes('cronosid') && query.match(/0x[a-fA-F0-9]{40}/)) {
+        console.log("[SDK] Trying Developer Platform Client SDK (CronosID.lookup) as fallback...");
+        return await lookupCronosIdAddressViaSDK(query);
+      }
+    }
+    
+    // Block queries by tag - "Get latest block with detail"
+    if (queryLower.includes('block') && (queryLower.includes('latest') || queryLower.includes('pending') || queryLower.includes('earliest') || queryLower.includes('get'))) {
+      console.log("[SDK] Trying Developer Platform Client SDK (Block.getBlockByTag)...");
+      return await getBlockByTagViaSDK(query);
     }
     
     // If query contains an address but we don't know what to do, try balance as default

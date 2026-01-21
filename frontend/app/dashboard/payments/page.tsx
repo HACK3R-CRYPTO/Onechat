@@ -279,12 +279,12 @@ export default function PaymentsPage() {
                       </p>
                       {payment.transactionHash && (
                         <a
-                          href={`https://testnet.cronoscan.com/tx/${payment.transactionHash}`}
+                          href={`https://explorer.cronos.org/testnet/tx/${payment.transactionHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-blue-400 hover:text-blue-300 mt-1 inline-flex items-center gap-1"
                         >
-                          View on Cronoscan <ExternalLink className="h-3 w-3" />
+                          View on Cronos Explorer <ExternalLink className="h-3 w-3" />
                         </a>
                       )}
                     </div>

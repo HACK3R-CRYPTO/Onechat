@@ -60,10 +60,10 @@ router.post("/quote", async (req: Request, res: Response) => {
       return res.status(400).json({
         error: "Failed to get quote",
         message: isInvalidAddress 
-          ? `Invalid VVS Router address. Please set VVS_ROUTER_ADDRESS in backend/.env. Current address (${String(routerAddress).length} chars) is incomplete. Find correct address at https://testnet.cronoscan.com`
+          ? `Invalid VVS Router address. Please set VVS_ROUTER_ADDRESS in backend/.env. Current address (${String(routerAddress).length} chars) is incomplete. Find correct address at https://explorer.cronos.org/testnet`
           : "Insufficient liquidity or invalid token pair. Check backend logs for details.",
         ...(isInvalidAddress && {
-          hint: "VVS Router address must be 42 characters (0x + 40 hex). Search 'VVS Finance Router' on testnet.cronoscan.com"
+          hint: "VVS Router address must be 42 characters (0x + 40 hex). Search 'VVS Finance Router' on explorer.cronos.org/testnet"
         })
       });
     }

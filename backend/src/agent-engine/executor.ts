@@ -34,8 +34,8 @@ async function getOpenRouterClient() {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: openRouterKey,
       defaultHeaders: {
-        "HTTP-Referer": "https://agentmarket.app", // Optional, for analytics
-        "X-Title": "AgentMarket", // Optional, for analytics
+        "HTTP-Referer": "https://onechat.app", // Optional, for analytics
+        "X-Title": "OneChat", // Optional, for analytics
       },
     });
   } catch (error) {

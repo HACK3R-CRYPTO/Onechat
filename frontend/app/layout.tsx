@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "AgentMarket - AI Agent Marketplace",
-  description: "Buy AI agents. Use AI agents. Pay per use. On-chain verification.",
+  title: "OneChat - One Chat. Multiple Superpowers.",
+  description: "Ask anything. Get real answers. Execute actions. All in one chat. Built on Cronos with x402 micropayments.",
 };
 
 export default async function RootLayout({

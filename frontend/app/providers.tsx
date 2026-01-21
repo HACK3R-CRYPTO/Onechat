@@ -13,9 +13,9 @@ if (!projectId) {
 }
 
 const metadata = {
-  name: "AgentMarket",
-  description: "AI Agent Marketplace on Cronos",
-  url: typeof window !== 'undefined' ? window.location.origin : "https://agentmarket.com",
+  name: "OneChat",
+  description: "One Chat. Multiple Superpowers.",
+  url: typeof window !== 'undefined' ? window.location.origin : "https://onechat.app",
   icons: ["https://avatars.githubusercontent.com/u/179229932"]
 }
 

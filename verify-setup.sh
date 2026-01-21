@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Quick verification script for AgentMarket setup
+# Quick verification script for OneChat setup
 
-echo "🔍 AgentMarket Setup Verification"
+echo "🔍 OneChat Setup Verification"
 echo "=================================="
 echo ""
 

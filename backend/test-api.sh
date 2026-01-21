@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AgentMarket API Test Script
+# OneChat API Test Script
 # Tests all API endpoints using curl
 
 API_URL="http://localhost:3001"

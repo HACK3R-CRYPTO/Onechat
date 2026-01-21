@@ -1,6 +1,6 @@
-# AgentMarket Frontend
+# OneChat Frontend
 
-Next.js frontend for AgentMarket. Connect wallet. Browse agents. Execute agents. Pay via x402. View results. Real-time updates.
+Next.js frontend for OneChat. Connect wallet. Ask anything. Get real answers. Execute actions. Pay via x402. View results. Real-time updates.
 
 ## What This Frontend Does
 
@@ -103,6 +103,13 @@ Browse all agents. See featured chat interface. View agent cards with pricing an
 
 ChatGPT-style interface. Ask anything. System detects intent automatically. Fetches real data when needed. Pay per message. Message history. Auto-scroll. Loading states.
 
+**Swap Features:**
+- Automatic network validation before executing swaps
+- Prompts to switch network if wallet is on wrong chain
+- Blocks transactions on wrong network to prevent failures
+- Supports both Cronos Mainnet (Chain ID: 25) and Testnet (Chain ID: 338)
+- Clear warnings when swap requires mainnet but wallet is on testnet
+
 ### Agent Detail Page (/agents/[id])
 
 View agent information. See pricing. Check reputation, executions, and success rate. Execute agent with input. Pay via x402. View results. Real-time metric updates after execution.
@@ -147,7 +154,7 @@ Payment hash generation: Uses keccak256 hash of payment header. Each payment gen
 
 Frontend uses wagmi for wallet connection. Supports MetaMask. Supports WalletConnect. Supports Coinbase Wallet. Supports other EIP-1193 compatible wallets.
 
-Network configuration: Chain ID 338 (Cronos Testnet). RPC https://evm-t3.cronos.org. Auto-prompts user to switch to Cronos testnet if on wrong network.
+Network configuration: Supports both Cronos Testnet (Chain ID: 338) and Cronos Mainnet (Chain ID: 25). RPC URLs configured for both networks. Auto-detects network and validates before transactions. For swaps: Automatically checks if wallet is on correct network (mainnet for mainnet swaps, testnet for testnet swaps). Prompts user to switch networks if needed. Blocks transactions on wrong network to prevent failures.
 
 ## UI Design
 
