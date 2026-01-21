@@ -533,14 +533,17 @@ export async function settlePayment(
         body: JSON.stringify(settleRequestBody),
       });
 
-      const settleData = await settleResponse.json() as { event?: string; success?: boolean; error?: string; errorReason?: string; txHash?: string };
+      const settleData = await settleResponse.json() as { event?: string; success?: boolean; error?: string; errorReason?: string; txHash?: string; from?: string; to?: string; value?: string; blockNumber?: number };
       debugLog("Facilitator settle response", settleData);
 
-      if (settleData.event !== 'payment.settled' || !settleData.success) {
+      // Check if payment was settled successfully
+      // The facilitator returns event: 'payment.settled' with txHash when successful
+      // It doesn't always include a 'success' field, so we check for txHash instead
+      if (settleData.event !== 'payment.settled' || !settleData.txHash) {
         errorLog("Payment settlement failed", {
           event: settleData.event,
-          success: settleData.success,
-          error: settleData.error,
+          txHash: settleData.txHash,
+          error: settleData.error || settleData.errorReason,
         });
         return {
           success: false,

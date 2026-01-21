@@ -1,12 +1,16 @@
 "use client";
 
-import { wagmiAdapter, projectId } from './config'
+import { wagmiAdapter, projectId, cronosTestnet } from './config'
 import { createAppKit } from '@reown/appkit/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import React, { type ReactNode, useEffect } from 'react'
+import React, { type ReactNode } from 'react'
 import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi'
 
 const queryClient = new QueryClient()
+
+if (!projectId) {
+  throw new Error('Project ID is not defined')
+}
 
 const metadata = {
   name: "AgentMarket",
@@ -15,37 +19,18 @@ const metadata = {
   icons: ["https://avatars.githubusercontent.com/u/179229932"]
 }
 
-// Initialize AppKit modal (only once on client side)
-let appKitInitialized = false
-
-function initializeAppKit() {
-  if (typeof window === 'undefined' || appKitInitialized || !projectId) {
-    return
-  }
-  
-  try {
-    createAppKit({
-      adapters: [wagmiAdapter],
-      projectId,
-      networks: wagmiAdapter.networks,
-      metadata: metadata,
-      features: {
-        analytics: true,
-      },
-      themeMode: 'dark'
-    })
-    appKitInitialized = true
-  } catch (error) {
-    console.error('Failed to initialize AppKit:', error)
-  }
-}
+const modal = createAppKit({
+  adapters: [wagmiAdapter],
+  projectId,
+  networks: [cronosTestnet],
+  metadata: metadata,
+  features: {
+    analytics: true,
+  },
+  themeMode: 'dark'
+})
 
 export function Providers({ children, cookies }: { children: ReactNode; cookies?: string | null }) {
-  // Initialize AppKit on mount
-  useEffect(() => {
-    initializeAppKit()
-  }, [])
-  
   // Safely parse cookies - handle null or empty strings
   let initialState;
   try {

@@ -26,6 +26,13 @@ export default function Home() {
     fetchAgents();
   }, []);
 
+  // Refetch agents when contract agents change (new agent registered)
+  useEffect(() => {
+    if (contractAgents.length > 0) {
+      fetchAgents();
+    }
+  }, [contractAgents.length]);
+
   const fetchAgents = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -46,27 +53,78 @@ export default function Home() {
     }
   };
 
-  // Use contract agents if available, otherwise fall back to API
-  const allAgents = contractAgents.length > 0 
-    ? contractAgents.map((a) => ({
-        id: a.id,
-        name: a.name,
-        description: a.description,
-        price: Number(a.pricePerExecution) / 1_000_000, // Convert from 6 decimals
-        reputation: Number(a.reputation),
-      }))
-    : apiAgents;
+  // Merge contract agents and API agents
+  // Strategy: 
+  // 1. Start with all API agents (default agents)
+  // 2. Replace API agents with contract agents if they have the same ID (contract is source of truth)
+  // 3. Append contract agents that don't exist in API (newly registered agents with new IDs)
+  const allAgents = useMemo(() => {
+    const apiAgentIds = new Set(apiAgents.map(a => a.id));
+    const contractAgentIds = new Set(contractAgents.map(a => a.id));
+    
+    // Map: agentId -> agent data
+    const agentMap = new Map<number, any>();
+    
+    // First, add all API agents
+    apiAgents.forEach(agent => {
+      agentMap.set(agent.id, agent);
+    });
+    
+    // Then, replace with contract agents if they exist (contract is source of truth)
+    contractAgents.forEach(agent => {
+      agentMap.set(agent.id, {
+        id: agent.id,
+        name: agent.name || `Agent ${agent.id}`,
+        description: agent.description || 'No description available',
+        price: Number(agent.pricePerExecution) / 1_000_000, // Convert from 6 decimals
+        reputation: Number(agent.reputation),
+      });
+    });
+    
+    // Convert map to array, sorted by ID
+    const merged = Array.from(agentMap.values()).sort((a, b) => a.id - b.id);
+    
+    // Debug logging
+    console.log("[Homepage] Merging agents:", {
+      apiCount: apiAgents.length,
+      contractCount: contractAgents.length,
+      mergedCount: merged.length,
+      apiIds: Array.from(apiAgentIds),
+      contractIds: Array.from(contractAgentIds),
+      mergedIds: merged.map(a => a.id),
+      mergedAgents: merged.map(a => ({ id: a.id, name: a.name, source: apiAgentIds.has(a.id) ? 'API' : 'Contract' }))
+    });
+    
+    // Log explanation
+    console.log("[Homepage] Note: Default agents (1-4) are from API, contract agents replace them if same ID");
+    
+    return merged;
+  }, [apiAgents, contractAgents]);
 
   // Filter agents based on search and category
   const agents = useMemo(() => {
     return allAgents.filter((agent) => {
+      // Safety check - only skip if agent is null/undefined or has no ID
+      if (!agent || !agent.id) {
+        console.warn("[Homepage] Filtering out invalid agent:", agent);
+        return false;
+      }
+      
+      // Allow agents with missing name/description (they'll show with fallbacks)
+      if (!agent.name) {
+        agent.name = `Agent ${agent.id}`;
+      }
+      if (!agent.description) {
+        agent.description = 'No description available';
+      }
+      
       // Search filter
       const matchesSearch = !searchTerm || 
         agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        agent.description.toLowerCase().includes(searchTerm.toLowerCase());
+        (agent.description && agent.description.toLowerCase().includes(searchTerm.toLowerCase()));
       
       // Category filter (based on description keywords)
-      const desc = agent.description.toLowerCase();
+      const desc = agent.description ? agent.description.toLowerCase() : "";
       const matchesCategory = categoryFilter === "all" || 
         (categoryFilter === "market" && /market|price|trading|crypto|bitcoin|ethereum/i.test(desc)) ||
         (categoryFilter === "blockchain" && /blockchain|balance|transaction|on-chain|wallet/i.test(desc)) ||
@@ -79,10 +137,11 @@ export default function Home() {
 
   // Debug logging
   useEffect(() => {
-    console.log("Contract agents:", contractAgents);
-    console.log("API agents:", apiAgents);
-    console.log("Final agents:", agents);
-  }, [contractAgents, apiAgents, agents]);
+    console.log("[Homepage] Contract agents:", contractAgents.length, contractAgents);
+    console.log("[Homepage] API agents:", apiAgents.length, apiAgents);
+    console.log("[Homepage] All agents (before filter):", allAgents.length, allAgents);
+    console.log("[Homepage] Final agents (after filter):", agents.length, agents);
+  }, [contractAgents.length, apiAgents.length, agents.length, allAgents.length]);
 
   if (loading || contractLoading) {
     return (
@@ -143,6 +202,28 @@ export default function Home() {
             >
               <Bot className="h-5 w-5" />
               Start Chatting
+            </a>
+          </div>
+        </div>
+
+        {/* VVS Swap CTA */}
+        <div className="mb-8 p-6 bg-gradient-to-br from-green-900/20 to-emerald-900/20 rounded-lg border border-green-800/50">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">VVS Finance Token Swap</h2>
+              <p className="text-neutral-300 mb-1">
+                Swap tokens on VVS Finance DEX via x402 payments - Use the chat agent!
+              </p>
+              <p className="text-sm text-neutral-400">
+                CRO • USDC • VVS • Crypto.com Integration • AI-Powered Swaps
+              </p>
+            </div>
+            <a
+              href="/chat"
+              className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-green-500/20 flex items-center gap-2"
+            >
+              <Bot className="h-5 w-5" />
+              Chat for Swaps
             </a>
           </div>
         </div>

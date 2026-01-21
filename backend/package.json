@@ -32,13 +32,15 @@
   "dependencies": {
     "@crypto.com/developer-platform-client": "^1.1.2",
     "@google/generative-ai": "^0.21.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@x402/core": "^2.2.0",
     "@x402/evm": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
-    "openai": "^4.104.0"
+    "openai": "^4.104.0",
+    "zod": "^4.3.5"
   },
   "optionalDependencies": {
     "@crypto.com/ai-agent-client": "^1.0.2"

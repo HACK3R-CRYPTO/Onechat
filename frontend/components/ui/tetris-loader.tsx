@@ -70,7 +70,7 @@ export default function TetrisLoading({
   )
   const [fallingPiece, setFallingPiece] = useState<FallingPiece | null>(null)
   const [isClearing, setIsClearing] = useState(false)
-  const frameRef = useRef<number>()
+  const frameRef = useRef<number | undefined>(undefined)
   const lastUpdateRef = useRef<number>(0)
 
   // Rotate a shape 90 degrees clockwise

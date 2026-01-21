@@ -25,7 +25,7 @@ export default function AgentDetail() {
   const params = useParams();
   const agentId = params.id as string;
   const agentIdNum = parseInt(agentId);
-  const { agent: contractAgent, loading: contractLoading } = useAgent(agentIdNum);
+  const { agent: contractAgent, loading: contractLoading, refetch: refetchContractAgent } = useAgent(agentIdNum);
   const queryClient = useQueryClient();
   const [apiAgent, setApiAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,11 +200,16 @@ export default function AgentDetail() {
         setPaymentError(null);
         
         // Refresh agent data to show updated metrics
-        // Wait a bit for blockchain to confirm (2-3 seconds)
+        // Wait a bit for blockchain to confirm (3-5 seconds)
         setTimeout(async () => {
+          console.log("[Agent Detail] Refreshing agent metrics after execution...");
           // Refetch API data
           await fetchAgent();
-          // Refetch contract data via wagmi
+          // Refetch contract data directly
+          if (refetchContractAgent) {
+            await refetchContractAgent();
+          }
+          // Also invalidate wagmi queries to ensure fresh data
           const { agentRegistry } = getContractAddresses();
           await queryClient.invalidateQueries({
             queryKey: [
@@ -216,7 +221,8 @@ export default function AgentDetail() {
               },
             ],
           });
-        }, 3000);
+          console.log("[Agent Detail] ✅ Agent metrics refreshed");
+        }, 5000);
       }
     } catch (error) {
       console.error("Error executing agent:", error);

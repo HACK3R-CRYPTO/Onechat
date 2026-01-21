@@ -7,6 +7,7 @@ import { db } from "../lib/database";
 import { ethers } from "ethers";
 import { determineAgentTools, fetchMarketData, executeBlockchainQuery, createCryptoComClient } from "../agent-engine/tools";
 import { releasePaymentToDeveloper } from "../lib/contract";
+import { getVVSQuote, getTokenAddress } from "../lib/vvs-finance";
 
 const router = Router();
 
@@ -20,6 +21,11 @@ import { chatRateLimit } from "../middleware/rateLimit";
 router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Request, res: Response) => {
   try {
     const { input, paymentHash } = req.body;
+
+    console.log(`\n[Chat] ========================================`);
+    console.log(`[Chat] 📨 New chat request received`);
+    console.log(`[Chat] Input: "${input.substring(0, 100)}${input.length > 100 ? '...' : ''}"`);
+    console.log(`[Chat] ========================================\n`);
 
     if (!input) {
       return res.status(400).json({ error: "Input required" });
@@ -102,8 +108,8 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     let paymentHashBytes32: string;
     if (paymentHash && paymentHash.startsWith("0x")) {
       paymentHashBytes32 = paymentHash;
-    } else if (paymentPayload?.hash) {
-      paymentHashBytes32 = paymentPayload.hash;
+    } else if (paymentPayload && 'hash' in paymentPayload && paymentPayload.hash) {
+      paymentHashBytes32 = paymentPayload.hash as string;
     } else {
       paymentHashBytes32 = ethers.keccak256(ethers.toUtf8Bytes(paymentHeaderValue || ""));
     }
@@ -114,6 +120,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     // Detect intent
     const needsMarketData = /(?:price|price of|current price|what's the price|how much is|trading at|market|volume|bitcoin|btc|ethereum|eth|crypto)/i.test(input);
     const needsBlockchain = /(?:balance|transaction|block|address|contract|on-chain|blockchain|wallet|0x[a-fA-F0-9]{40})/i.test(input);
+    const needsSwap = /(?:swap|exchange|trade|convert|vvs|dex).*?(?:token|coin|crypto)/i.test(input);
     const needsContractAnalysis = /(?:contract|solidity|pragma|function|analyze|audit|vulnerability|security|bug)/i.test(input);
     const needsContent = /(?:create|generate|write|tweet|post|content|marketing|copy)/i.test(input);
 
@@ -123,15 +130,56 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
 
     // Fetch market data if needed
     if (needsMarketData) {
-      const marketDataPattern = /(?:price|price of|current price|what's the price|how much is|trading at)\s+([A-Z]{2,10}|bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|polygon|matic)/i;
-      const match = input.match(marketDataPattern);
-      if (match) {
-        const symbol = match[1].toUpperCase();
-        console.log(`[Chat] Fetching market data for ${symbol}...`);
+      // Improved regex to handle "price of Bitcoin" correctly
+      // Try to match common patterns and extract symbol
+      let symbol: string | null = null;
+      
+      // Pattern 1: "price of X" or "price of X coin"
+      const priceOfPattern = /(?:price|cost)\s+of\s+([a-z]+)(?:\s+coin)?/i;
+      const priceOfMatch = input.match(priceOfPattern);
+      if (priceOfMatch) {
+        symbol = priceOfMatch[1];
+      } else {
+        // Pattern 2: "X price" or "current X price"
+        const pricePattern = /(?:current\s+)?([a-z]{2,10})\s+price/i;
+        const priceMatch = input.match(pricePattern);
+        if (priceMatch) {
+          symbol = priceMatch[1];
+        } else {
+          // Pattern 3: Direct symbol mentions (BTC, ETH, etc.)
+          const directSymbolPattern = /\b(bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|polygon|matic|doge|dogecoin|shiba|shib)\b/i;
+          const directMatch = input.match(directSymbolPattern);
+          if (directMatch) {
+            symbol = directMatch[1];
+          }
+        }
+      }
+      
+      if (symbol) {
+        // Normalize symbol (bitcoin -> BTC, ethereum -> ETH, etc.)
+        const symbolMap: Record<string, string> = {
+          "bitcoin": "BTC",
+          "btc": "BTC",
+          "ethereum": "ETH",
+          "eth": "ETH",
+          "solana": "SOL",
+          "sol": "SOL",
+          "cardano": "ADA",
+          "ada": "ADA",
+          "polygon": "MATIC",
+          "matic": "MATIC",
+          "doge": "DOGE",
+          "dogecoin": "DOGE",
+          "shiba": "SHIB",
+          "shib": "SHIB",
+        };
+        
+        const normalizedSymbol = symbolMap[symbol.toLowerCase()] || symbol.toUpperCase();
+        console.log(`[Chat] Fetching market data for ${normalizedSymbol} (extracted from: ${symbol})...`);
         try {
-          const marketData = await fetchMarketData(symbol);
+          const marketData = await fetchMarketData(normalizedSymbol);
           if (marketData && !marketData.error) {
-            realDataContext += `\n\n[Real Market Data for ${symbol}]:\n${JSON.stringify(marketData, null, 2)}\n`;
+            realDataContext += `\n\n[Real Market Data for ${normalizedSymbol}]:\n${JSON.stringify(marketData, null, 2)}\n`;
             console.log(`[Chat] ✅ Market data fetched successfully`);
           }
         } catch (error) {
@@ -142,18 +190,46 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
 
     // Fetch blockchain data if needed
     if (needsBlockchain) {
+      // If query doesn't have an address, try to use payer's address for balance queries
+      if (input.toLowerCase().includes("balance") && !input.toLowerCase().includes("0x") && verification.payerAddress) {
+        console.log(`[Chat] ℹ️ No address in balance query, using payer's address: ${verification.payerAddress}`);
+        enhancedInput = `${input} for address ${verification.payerAddress}`;
+      }
       const blockchainClient = createCryptoComClient();
       if (blockchainClient) {
         console.log(`[Chat] 🔗 Detected blockchain query, using Crypto.com AI Agent SDK...`);
         console.log(`[Chat] 📡 SDK Status: ACTIVE - Querying Cronos blockchain via Crypto.com AI Agent SDK`);
         try {
-          const blockchainResult = await executeBlockchainQuery(blockchainClient, input);
-          if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:")) {
+          // Use enhancedInput which may include payer's address
+          const blockchainQuery = enhancedInput.includes("for address") ? enhancedInput : input;
+          const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
+          if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
             realDataContext += `\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\n${blockchainResult}\n`;
             console.log(`[Chat] ✅ Blockchain data fetched successfully via Crypto.com AI Agent SDK`);
             console.log(`[Chat] 📊 SDK Result: ${blockchainResult.substring(0, 100)}...`);
           } else {
             console.warn(`[Chat] ⚠️ SDK returned error or unavailable: ${blockchainResult}`);
+            // Check if it's a 403 error from Explorer API - this means we should try RPC fallback
+            if (blockchainResult && (blockchainResult.includes("403") || blockchainResult.includes("Forbidden") || blockchainResult.includes("status code 403"))) {
+              console.log(`[Chat] 🔄 AI Agent SDK got 403 from Explorer API, trying RPC fallback for block queries...`);
+              // For block queries, try RPC directly
+              if (blockchainQuery.toLowerCase().includes('block')) {
+                try {
+                  const { queryBlockInfoViaRPC } = require("./agent-engine/tools");
+                  const rpcResult = await queryBlockInfoViaRPC(blockchainQuery);
+                  if (rpcResult && !rpcResult.includes("Error:")) {
+                    realDataContext += `\n\n[Real Blockchain Data - Fetched via RPC (AI Agent SDK Explorer API unavailable)]:\n${rpcResult}\n`;
+                    console.log(`[Chat] ✅ Block data fetched successfully via RPC fallback`);
+                  }
+                } catch (rpcError) {
+                  console.warn(`[Chat] ⚠️ RPC fallback also failed:`, rpcError);
+                }
+              }
+            }
+            // If SDK couldn't find address, add helpful note
+            if (blockchainResult && blockchainResult.includes("Could not find")) {
+              realDataContext += `\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.`;
+            }
             // Don't add error to context - let agent work without blockchain data
           }
         } catch (error) {
@@ -165,6 +241,85 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
       }
     }
 
+    // Add swap context and execute swap quote if swap is requested
+    if (needsSwap) {
+      // Get network info for swap context
+      const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+      const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
+      const network = isTestnet ? "Testnet" : "Mainnet";
+      const vvsRouter = isTestnet 
+        ? (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode")
+        : (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae");
+      
+      realDataContext += `\n\n[VVS Finance Swap Information]:\n`;
+      realDataContext += `Network: Cronos ${network}\n`;
+      realDataContext += `VVS Router Address: ${vvsRouter}\n`;
+      realDataContext += `Swap Execution Cost: $0.15 (via x402 payment)\n`;
+      realDataContext += `Supported Tokens: CRO, USDC, VVS, and other tokens on Cronos\n`;
+      if (isTestnet) {
+        realDataContext += `Note: VVS Finance may use mock mode on testnet for demonstration\n`;
+      } else {
+        realDataContext += `Note: Real swaps execute on VVS Finance Mainnet\n`;
+      }
+      
+      // Try to extract swap parameters and get a quote
+      try {
+        const swapMatch = input.match(/(?:swap|exchange|trade|convert)\s+(\d+(?:\.\d+)?)\s+(\w+)\s+(?:for|to|into)\s+(\w+)/i);
+        if (swapMatch) {
+          const amountIn = swapMatch[1];
+          const tokenInSymbol = swapMatch[2].toUpperCase();
+          const tokenOutSymbol = swapMatch[3].toUpperCase();
+          
+          const tokenInAddress = getTokenAddress(tokenInSymbol) || tokenInSymbol;
+          const tokenOutAddress = getTokenAddress(tokenOutSymbol) || tokenOutSymbol;
+          
+          console.log(`[Chat] 💱 Detected swap: ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
+          
+          // Get swap quote (free, no payment needed)
+          try {
+            const amountInWei = ethers.parseUnits(amountIn, 18);
+            const quote = await getVVSQuote(
+              tokenInAddress,
+              tokenOutAddress,
+              amountInWei.toString()
+            );
+            
+            if (quote) {
+              const amountOut = ethers.formatUnits(quote.amountOut, 18);
+              realDataContext += `\n\n[Live Swap Quote - Fetched from VVS Finance]:\n`;
+              realDataContext += `Token Pair: ${tokenInSymbol} → ${tokenOutSymbol}\n`;
+              realDataContext += `Amount In: ${amountIn} ${tokenInSymbol}\n`;
+              realDataContext += `Expected Amount Out: ${amountOut} ${tokenOutSymbol}\n`;
+              realDataContext += `Swap Path: ${quote.path.join(" → ")}\n`;
+              realDataContext += `\nTo execute this swap, the user needs to call /api/vvs-swap/execute with x402 payment ($0.15).\n`;
+              realDataContext += `Swap parameters ready: tokenIn=${tokenInAddress}, tokenOut=${tokenOutAddress}, amountIn=${amountIn}, recipient=${verification.payerAddress}\n`;
+              console.log(`[Chat] ✅ Swap quote fetched: ${amountIn} ${tokenInSymbol} → ${amountOut} ${tokenOutSymbol}`);
+            } else {
+              realDataContext += `\n\n[Swap Quote]: Could not get quote - insufficient liquidity or invalid token pair.\n`;
+              console.log(`[Chat] ⚠️ Could not get swap quote`);
+            }
+          } catch (quoteError) {
+            console.warn(`[Chat] ⚠️ Failed to get swap quote:`, quoteError);
+            realDataContext += `\n\n[Swap Quote]: Quote service temporarily unavailable. User can try the swap directly.\n`;
+          }
+        } else {
+          realDataContext += `\n\n[Swap Detection]: Detected swap request but couldn't parse exact parameters. Please specify: "swap X TOKEN_A for TOKEN_B"\n`;
+        }
+      } catch (swapError) {
+        console.warn(`[Chat] ⚠️ Error processing swap request:`, swapError);
+      }
+      
+      console.log(`[Chat] 💱 Swap context added for ${network}`);
+    }
+
+    // Get network info for system prompt (if not already set in swap context)
+    const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+    const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
+    const network = isTestnet ? "Testnet" : "Mainnet";
+    const vvsRouter = isTestnet 
+      ? (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode")
+      : (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae");
+
     // Build system prompt based on detected needs
     let systemPrompt = `You are AgentMarket, a unified AI assistant with access to multiple tools and capabilities.
 
@@ -173,6 +328,7 @@ ${needsMarketData ? "- **Market Data**: You have access to real-time cryptocurre
 ${needsBlockchain ? "- **Blockchain**: You can query Cronos EVM blockchain data (balances, transactions, contracts)\n" : ""}
 ${needsContractAnalysis ? "- **Contract Analysis**: You can analyze Solidity smart contracts for security issues\n" : ""}
 ${needsContent ? "- **Content Generation**: You can create marketing content, tweets, and Web3 copy\n" : ""}
+${needsSwap ? `- **Token Swaps**: You can help users swap tokens on VVS Finance DEX (Cronos ${network})\n` : ""}
 
 ## Your Task:
 - Analyze the user's question
@@ -181,10 +337,30 @@ ${needsContent ? "- **Content Generation**: You can create marketing content, tw
 - Be clear and actionable
 - **IMPORTANT**: If real blockchain data is provided, use it directly. If no real data is provided, explain that blockchain query services are currently unavailable, but you can provide general information about how to check balances using blockchain explorers.
 
+${needsSwap ? `## Token Swap Instructions (VVS Finance):
+When users ask about token swaps:
+1. **Network**: Current network is Cronos ${network}
+2. **VVS Router**: ${vvsRouter}
+3. **Agent-Driven Workflow**: 
+   - I automatically detect swap requests and extract parameters (amount, tokens)
+   - I fetch live swap quotes from VVS Finance DEX
+   - I provide the quote and swap details to the user
+   - Swaps require x402 payment ($0.15 per swap execution via /api/vvs-swap/execute)
+4. **Response Format**: 
+   - If I have a live quote: Show the exact quote with amounts and path
+   - Explain the swap will cost $0.15 via x402 payment
+   - Provide the swap parameters ready for execution
+   - Guide users to execute via the swap API endpoint
+${isTestnet ? "5. **Note**: VVS Finance may use mock mode on testnet for demonstration purposes\n" : "5. **Note**: Real swaps execute on VVS Finance Mainnet\n"}
+6. **Example**: If user says "swap 100 CRO for USDC":
+   - I show: "I've fetched a live quote from VVS Finance: 100 CRO → ~X USDC. To execute, call /api/vvs-swap/execute with x402 payment ($0.15). Swap parameters: tokenIn=..., tokenOut=..., amountIn=100, recipient=YOUR_ADDRESS"
+
+` : ""}
 ## Response Format:
 - If you have real blockchain data: Present it clearly with the actual values
 - If you DON'T have real data: Explain that the blockchain query service is unavailable and suggest using a blockchain explorer like Cronoscan (https://testnet.cronoscan.com) to check the balance manually
 - **DO NOT** show Python code or tool_code commands - provide natural language responses only
+- For swap requests: Provide clear, helpful guidance about the swap process, network, and requirements
 
 User Input:
 `;
@@ -244,9 +420,21 @@ User Input:
       console.log(`[Chat] ✅ Agent execution successful: ${result.success ? "SUCCESS" : "FAILED"}`);
     } catch (execError) {
       console.error("[Chat] ❌ Agent execution failed:", execError);
+      // Provide user-friendly error messages
+      let errorMessage = "Agent execution failed";
+      if (execError instanceof Error) {
+        const errorMsg = execError.message;
+        if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("rate limit")) {
+          errorMessage = "AI service is currently rate-limited. Please try again in a few minutes. If this persists, the free tier quota may be exhausted.";
+        } else if (errorMsg.includes("RateLimitError")) {
+          errorMessage = "AI service rate limit exceeded. Please wait a moment and try again.";
+        } else {
+          errorMessage = `Agent execution failed: ${errorMsg}`;
+        }
+      }
       // Still try to verify execution on contract even if agent execution failed
       result = {
-        output: execError instanceof Error ? execError.message : "Agent execution failed",
+        output: errorMessage,
         success: false,
       };
     }
@@ -292,24 +480,18 @@ User Input:
         }, paymentHeaderValue);
         console.log("Payment settled to escrow successfully");
         
-        // Release payment to developer (minus platform fee)
-        // For unified chat agent: check if agent has developer, if not skip release
-        console.log("Checking agent developer address...");
-        const agent = await getAgentFromContract(UNIFIED_AGENT_ID);
-        if (agent && agent.developer && agent.developer !== "0x0000000000000000000000000000000000000000") {
-          console.log("Releasing payment to developer...");
-          const released = await releasePaymentToDeveloper(paymentHashBytes32, UNIFIED_AGENT_ID);
-          if (released) {
-            console.log("✅ Payment released to developer successfully");
-            db.updatePayment(paymentHashBytes32, { status: "settled" });
-          } else {
-            console.warn("⚠️  Payment settlement succeeded but release to developer failed");
-            db.updatePayment(paymentHashBytes32, { status: "settled" }); // Still mark as settled
-          }
-        } else {
-          console.log("ℹ️  Unified chat agent has no developer address - skipping payment release");
-          console.log("   Payment is settled in escrow. For unified chat, this is expected.");
+        // Release payment to developer
+        // For unified chat (Agent ID 1): Not a real agent, so transfer directly to contract owner
+        // If release fails (agent not in registry), funds stay in escrow (acceptable for unified chat)
+        console.log("Releasing payment to contract owner (unified chat - not a registered agent)...");
+        const released = await releasePaymentToDeveloper(paymentHashBytes32, UNIFIED_AGENT_ID);
+        if (released) {
+          console.log("✅ Payment released to contract owner successfully");
           db.updatePayment(paymentHashBytes32, { status: "settled" });
+        } else {
+          console.log("ℹ️  Payment settled in escrow (unified chat doesn't require agent registration)");
+          console.log("   Funds are safely held in escrow and belong to contract owner");
+          db.updatePayment(paymentHashBytes32, { status: "settled" }); // Mark as settled
         }
       } catch (settleError) {
         console.error("Payment settlement error:", settleError);
@@ -437,7 +619,7 @@ async function executeAgentWithPrompt(
         const response = await result.response;
         output = response.text();
       }
-      console.log(`[Chat] ✅ ${useOpenRouter ? 'OpenRouter' : 'Gemini'} API call successful (response length: ${output.length})`);
+      console.log(`[Chat] ✅ ${useOpenRouter ? 'OpenRouter' : 'Gemini'} API call successful (response length: ${output?.length || 0})`);
       break;
     } catch (error: any) {
       lastError = error;
@@ -507,8 +689,15 @@ async function executeAgentWithPrompt(
   }
 
   if (!output) {
-    const errorMsg = lastError ? (lastError instanceof Error ? lastError.message : String(lastError)) : "Failed to get response from Gemini";
-    console.error(`[Chat] ❌ Gemini API failed after ${maxRetries} attempts:`, errorMsg);
+    const errorMsg = lastError ? (lastError instanceof Error ? lastError.message : String(lastError)) : "Failed to get response from AI service";
+    console.error(`[Chat] ❌ AI API failed after ${maxRetries} attempts:`, errorMsg);
+    
+    // Provide user-friendly error message for rate limits
+    if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("rate limit") || errorMsg.includes("RateLimitError")) {
+      const friendlyError = new Error("AI service rate limit exceeded. The free tier quota may be exhausted. Please try again in a few minutes or use a paid API key.");
+      throw friendlyError;
+    }
+    
     throw lastError || new Error(errorMsg);
   }
   

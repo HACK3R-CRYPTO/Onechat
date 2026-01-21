@@ -38,6 +38,16 @@ NEXT_PUBLIC_CHAIN_ID=338
 
 **Note:** Contract addresses are also hardcoded in source files as a fallback, so the app works even without `.env.local`.
 
+### Mainnet switch (optional)
+```env
+NEXT_PUBLIC_CRONOS_RPC_URL=https://evm.cronos.org
+NEXT_PUBLIC_CHAIN_ID=25
+NEXT_PUBLIC_AGENT_REGISTRY_ADDRESS=<mainnet-address>
+NEXT_PUBLIC_AGENT_ESCROW_ADDRESS=<mainnet-address>
+```
+
+Mock mode is automatic on testnet (VVS not on testnet). Real mode on mainnet.
+
 ## Development
 
 Start development server:

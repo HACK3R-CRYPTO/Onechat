@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useAgents } from "@/hooks/useAgents";
+import { usePlatformStats } from "@/hooks/usePlatformStats";
+import { useExecutions } from "@/hooks/useExecutions";
 import TetrisLoading from "@/components/ui/tetris-loader";
 import Link from "next/link";
 import {
@@ -50,40 +52,39 @@ interface ActivityItem {
 
 export default function DashboardPage() {
   const { agents: contractAgents, loading: contractLoading } = useAgents();
-  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
-  const [agentStats, setAgentStats] = useState<AgentStats[]>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { stats: platformStats, loading: statsLoading } = usePlatformStats();
+  const { executions, loading: executionsLoading } = useExecutions(10);
 
-  useEffect(() => {
-    fetchAnalytics();
-    fetchRecentActivity();
-  }, []);
+  // Convert agent data to stats format
+  const agentStats = useMemo<AgentStats[]>(() => {
+    return contractAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      executions: Number(agent.totalExecutions),
+      successfulExecutions: Number(agent.successfulExecutions),
+      reputation: Number(agent.reputation),
+      price: Number(agent.pricePerExecution) / 1_000_000,
+    }));
+  }, [contractAgents]);
 
-  const fetchAnalytics = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/analytics/platform`);
-      const data = await response.json();
-      setPlatformStats(data.stats);
-      setAgentStats(data.agents || []);
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Convert executions to activity format
+  const recentActivity = useMemo<ActivityItem[]>(() => {
+    return executions.map((exec) => {
+      const agent = contractAgents.find((a) => a.id === exec.agentId);
+      return {
+        type: "execution" as const,
+        id: exec.id,
+        agentId: exec.agentId,
+        agentName: agent?.name || `Agent ${exec.agentId}`,
+        userId: exec.user,
+        timestamp: Number(exec.timestamp) * 1000, // Convert to milliseconds
+        success: exec.verified && exec.output !== "",
+        status: exec.verified ? "verified" : "pending",
+      };
+    });
+  }, [executions, contractAgents]);
 
-  const fetchRecentActivity = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/logs/activity?limit=10`);
-      const data = await response.json();
-      setRecentActivity(data.activities || []);
-    } catch (error) {
-      console.error("Error fetching recent activity:", error);
-    }
-  };
+  const loading = contractLoading || statsLoading || executionsLoading;
 
   const formatTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -151,7 +152,7 @@ export default function DashboardPage() {
               <Bot className="h-5 w-5 text-neutral-500" />
             </div>
             <div className="text-3xl font-bold text-neutral-50">
-              {platformStats?.totalAgents || 0}
+              {platformStats?.totalAgents ?? 0}
             </div>
             <p className="text-xs text-neutral-500 mt-1">Active agents</p>
           </div>
@@ -162,7 +163,7 @@ export default function DashboardPage() {
               <Activity className="h-5 w-5 text-neutral-500" />
             </div>
             <div className="text-3xl font-bold text-neutral-50">
-              {platformStats?.totalExecutions || 0}
+              {platformStats?.totalExecutions ?? 0}
             </div>
             <p className="text-xs text-neutral-500 mt-1">All time</p>
           </div>
@@ -173,7 +174,7 @@ export default function DashboardPage() {
               <DollarSign className="h-5 w-5 text-green-500" />
             </div>
             <div className="text-3xl font-bold text-green-500">
-              ${platformStats?.totalRevenue || "0.00"}
+              ${platformStats?.totalRevenue ?? "0.00"}
             </div>
             <p className="text-xs text-neutral-500 mt-1">USDC earned</p>
           </div>
@@ -184,7 +185,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-5 w-5 text-neutral-500" />
             </div>
             <div className="text-3xl font-bold text-neutral-50">
-              {platformStats?.successRate || "0"}%
+              {platformStats?.successRate ?? "0"}%
             </div>
             <p className="text-xs text-neutral-500 mt-1">Platform average</p>
           </div>

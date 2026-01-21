@@ -12,49 +12,36 @@ const router = Router();
 
 router.get("/", apiRateLimit, async (req: Request, res: Response) => {
   try {
-    // Try to fetch from contract first
-    const contractAgents = await getAllAgentsFromContract();
-    
-    if (contractAgents.length > 0) {
-      const formattedAgents = contractAgents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        description: agent.description,
-        price: Number(agent.pricePerExecution) / 1_000_000, // Convert from 6 decimals
-        reputation: Number(agent.reputation),
-      }));
-      return res.json({ agents: formattedAgents });
-    }
-
-    // Fallback to hardcoded agents if contract not deployed
+    // Always return hardcoded default agents
+    // The frontend will merge these with contract agents
     const agents = [
       {
         id: 1,
         name: "Smart Contract Analyzer",
-        description: "Analyzes Solidity contracts for vulnerabilities",
+        description: "Analyzes Solidity contracts for vulnerabilities and security issues",
         price: 0.10,
-        reputation: 850,
+        reputation: 725,
       },
       {
         id: 2,
         name: "Market Data Agent",
-        description: "Fetches and analyzes Crypto.com market data",
+        description: "Fetches and analyzes Crypto.com market data and price trends",
         price: 0.05,
-        reputation: 920,
+        reputation: 500,
       },
       {
         id: 3,
         name: "Content Generator",
         description: "Creates marketing content for Web3 projects",
         price: 0.02,
-        reputation: 780,
+        reputation: 1000,
       },
       {
         id: 4,
         name: "Portfolio Analyzer",
-        description: "Analyzes DeFi portfolios and suggests optimizations",
+        description: "Analyzes DeFi portfolios and suggests optimization strategies",
         price: 0.15,
-        reputation: 890,
+        reputation: 500,
       },
     ];
 
@@ -250,8 +237,8 @@ router.post("/:id/execute", agentExecutionRateLimit, validateAgentInputMiddlewar
     let paymentHashBytes32: string;
     if (paymentHash && paymentHash.startsWith("0x")) {
       paymentHashBytes32 = paymentHash;
-    } else if (paymentPayload?.hash) {
-      paymentHashBytes32 = paymentPayload.hash;
+    } else if (paymentPayload && 'hash' in paymentPayload && paymentPayload.hash) {
+      paymentHashBytes32 = paymentPayload.hash as string;
     } else {
       // Generate a hash from the payment header
       paymentHashBytes32 = ethers.keccak256(ethers.toUtf8Bytes(headerString || ""));
@@ -345,8 +332,8 @@ router.post("/:id/execute", agentExecutionRateLimit, validateAgentInputMiddlewar
         }, headerString);
         console.log("Payment settled to escrow successfully");
         
-        // Step 5: Release payment to developer (minus platform fee)
-        console.log("Releasing payment to developer...");
+        // Step 5: Release payment to developer (the person who registered the agent)
+        console.log("Releasing payment to agent's developer...");
         const released = await releasePaymentToDeveloper(paymentHashBytes32, agentId);
         if (released) {
           console.log("✅ Payment released to developer successfully");

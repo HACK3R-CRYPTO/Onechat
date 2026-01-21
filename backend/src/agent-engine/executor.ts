@@ -70,109 +70,42 @@ interface AgentConfig {
   model?: string;
 }
 
-const AGENT_CONFIGS: Record<number, AgentConfig> = {
-  1: {
-    systemPrompt: `You are a smart contract security expert. Analyze the provided Solidity smart contract code and identify potential vulnerabilities, security issues, and best practice violations. Return a structured security report with:
-- Critical vulnerabilities
-- Medium severity issues
-- Low severity issues
-- Recommendations for fixes
-Format your response as a clear, professional security audit report.`,
-    model: "gemini-2.5-flash", // Using gemini-2.5-flash (without models/ prefix - SDK handles it)
-  },
-  2: {
-    systemPrompt: `You are a cryptocurrency market data analyst with access to REAL-TIME market data from Crypto.com Exchange.
-
-## Available Tools:
-- **Market Data API**: Access real-time cryptocurrency prices, volumes, and market statistics
-- **Price Lookup**: Get current prices for any cryptocurrency
-- **Volume Analysis**: Get trading volume and market statistics
-
-When users ask about prices or market data, you will receive REAL market data from Crypto.com Exchange API. Use this real data to provide accurate, up-to-date analysis.
-
-Your task:
-- Analyze real market data provided to you
-- Provide insights about price trends, market sentiment, trading opportunities, and risk factors
-- Format your response as a clear, professional market analysis report
-- Always base your analysis on the real data provided, not assumptions
-
-User Input:
-`,
-    model: "gemini-2.5-flash",
-  },
-  3: {
-    systemPrompt: `You are a marketing copywriter specializing in Web3 and cryptocurrency projects. Generate engaging, professional marketing content based on the provided brief. Your content should be:
-- Clear and compelling
-- Web3-native language
-- Professional tone
-- Action-oriented
-Format your response as ready-to-use marketing copy.`,
-    model: "gemini-2.5-flash",
-  },
-  4: {
-    systemPrompt: `You are a DeFi portfolio analyst with access to blockchain data and market information.
-
-## Available Tools:
-- **Blockchain Query**: Query Cronos EVM blockchain data (balances, transactions, contracts)
-- **Market Data**: Access real-time cryptocurrency prices and market data
-
-When users provide portfolio information, you can:
-- Check real token balances on-chain
-- Get current prices for portfolio assets
-- Analyze portfolio composition with real data
-- Provide risk assessment based on market conditions
-- Suggest optimization strategies
-
-Your task:
-- Analyze portfolio information (may include real blockchain data)
-- Provide portfolio composition analysis
-- Assess risks based on real market data
-- Recommend optimizations
-- Suggest strategies
-- Format as a comprehensive portfolio analysis report
-
-User Input:
-`,
-    model: "gemini-2.5-flash",
-  },
-};
+// Hardcoded configs removed - all agents now use contract descriptions
+// Agents are registered on-chain and prompts are auto-generated from their descriptions
 
 export async function executeAgent(
   agentId: number,
   input: string
 ): Promise<{ output: string; success: boolean }> {
   try {
-    // Priority 1: Check hardcoded configs (for pre-configured agents)
-    let config = AGENT_CONFIGS[agentId];
+    // Always fetch agent from contract to get actual name and description
+    const agent = await getAgentFromContract(agentId);
     
-    // Priority 2: Auto-generate from contract description (for new agents)
-    if (!config) {
-      console.log(`[Agent ${agentId}] No hardcoded config found, fetching from contract...`);
-      const agent = await getAgentFromContract(agentId);
-      
-      if (!agent) {
-        return {
-          output: "Agent not found on contract",
-          success: false,
-        };
-      }
-      
-      // Generate prompt from description
-      const basePrompt = generateDefaultPrompt(agent.description);
-      
-      // Determine what tools this agent should have
-      const tools = determineAgentTools(agent.description);
-      
-      // Enhance prompt with tool instructions
-      const enhancedPrompt = buildEnhancedPrompt(basePrompt, tools, agent.description);
-      
-      config = {
-        systemPrompt: enhancedPrompt,
-        model: "gemini-2.5-flash"
+    if (!agent) {
+      return {
+        output: "Agent not found on contract",
+        success: false,
       };
-      
-      console.log(`[Agent ${agentId}] Using auto-generated prompt with tools: ${tools.tools.join(", ") || "none"}`);
     }
+
+    // All agents use contract description - no hardcoded configs
+    console.log(`[Agent ${agentId}] Generating prompt from contract description for "${agent.name}"`);
+    
+    // Determine tools from contract description
+    const tools = determineAgentTools(agent.description);
+    
+    // Generate prompt from description
+    const basePrompt = generateDefaultPrompt(agent.description);
+    
+    // Enhance prompt with tool instructions
+    const enhancedPrompt = buildEnhancedPrompt(basePrompt, tools, agent.description);
+    
+    const config: AgentConfig = {
+      systemPrompt: enhancedPrompt,
+      model: "gemini-2.5-flash"
+    };
+    
+    console.log(`[Agent ${agentId}] Using auto-generated prompt with tools: ${tools.tools.join(", ") || "none"}`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -212,22 +145,7 @@ export async function executeAgent(
       throw new Error("No AI provider configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY");
     }
 
-    // Get agent description for tool detection
-    let agentDescription = "";
-    if (agentId <= 4) {
-      // Pre-configured agents
-      if (agentId === 1) agentDescription = "Analyzes Solidity contracts for vulnerabilities";
-      if (agentId === 2) agentDescription = "Fetches and analyzes Crypto.com market data";
-      if (agentId === 3) agentDescription = "Creates marketing content for Web3 projects";
-      if (agentId === 4) agentDescription = "Analyzes DeFi portfolios";
-    } else {
-      // Fetch from contract for new agents
-      const agent = await getAgentFromContract(agentId).catch(() => null);
-      agentDescription = agent?.description || "";
-    }
-    
-    // Determine tools based on agent description
-    const tools = determineAgentTools(agentDescription);
+    // Tools already determined above from contract description
     
     // Pre-process input to fetch real data if needed
     let enhancedInput = input;
@@ -275,6 +193,31 @@ export async function executeAgent(
         }
       } else {
         console.log(`[Agent ${agentId}] ⚠️ Crypto.com AI Agent SDK not configured (missing API keys)`);
+      }
+    }
+
+    // Check if user is asking for token swap
+    if (tools.hasSwapAccess) {
+      const swapPattern = /(?:swap|exchange|trade|convert|vvs|dex).*?(?:token|coin|crypto)/i;
+      if (swapPattern.test(input)) {
+        console.log(`[Agent ${agentId}] 💱 Detected swap request, providing swap information...`);
+        const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+        const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
+        const network = isTestnet ? "Cronos Testnet" : "Cronos Mainnet";
+        const vvsRouter = isTestnet 
+          ? (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode")
+          : (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae");
+        
+        realDataContext += `\n\n[VVS Finance Swap Information]:\n`;
+        realDataContext += `Network: ${network}\n`;
+        realDataContext += `VVS Router Address: ${vvsRouter}\n`;
+        realDataContext += `To execute a swap, I can help you:\n`;
+        realDataContext += `1. Get a quote for your token swap\n`;
+        realDataContext += `2. Execute the swap transaction (requires x402 payment)\n`;
+        realDataContext += `3. Check liquidity for token pairs\n`;
+        realDataContext += `\nSupported tokens: CRO, USDC, VVS, and other tokens on Cronos\n`;
+        realDataContext += `Note: VVS Finance is primarily on Mainnet. For testnet, mock mode may be used.\n`;
+        console.log(`[Agent ${agentId}] ✅ Swap information added to context`);
       }
     }
 
@@ -388,5 +331,6 @@ export async function executeAgent(
 }
 
 export function getAgentConfig(agentId: number): AgentConfig | null {
-  return AGENT_CONFIGS[agentId] || null;
+  // All agents now use contract descriptions - no hardcoded configs
+  return null;
 }

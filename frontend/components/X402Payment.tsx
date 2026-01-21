@@ -31,6 +31,8 @@ export function X402Payment({
     setPaying(true);
 
     try {
+      console.log("💳 Starting payment process...");
+      
       // CRITICAL: Clear any old payment before creating a new one
       // This ensures we never reuse an old payment hash
       if (typeof window !== "undefined") {
@@ -44,6 +46,7 @@ export function X402Payment({
       const { agentEscrow } = getContractAddresses();
       if (agentEscrow === "0x...") {
         onError("Contract not deployed. Please set AGENT_ESCROW_ADDRESS");
+        setPaying(false);
         return;
       }
 
@@ -55,20 +58,27 @@ export function X402Payment({
       });
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const resourceUrl = `${apiUrl}/api/agents/${agentId}/execute`;
+      // For VVS swap, use the vvs-swap endpoint
+      const resourceUrl = agentId === 999 
+        ? `${apiUrl}/api/vvs-swap/execute`
+        : `${apiUrl}/api/agents/${agentId}/execute`;
 
-      console.log("Creating NEW payment - this will generate a unique nonce and hash");
-
+      console.log("📝 Step 1: Creating payment request...");
       // Step 1: Request payment requirements from backend
       const paymentRequest = await requestPayment(
         priceUsd,
         agentEscrow,
         resourceUrl
       );
+      console.log("✅ Payment request created");
 
+      console.log("✍️ Step 2: Requesting wallet signature (check your wallet)...");
       // Step 2: Sign payment with wallet (generates fresh random nonce each time)
+      // This is where it might hang - waiting for user to sign in wallet
       const { signature, nonce, validAfter, validBefore } = await signPayment(paymentRequest);
+      console.log("✅ Payment signed by wallet");
 
+      console.log("🔨 Step 3: Building payment payload...");
       // Step 3: Build payment payload using the SAME nonce and timestamps from signing
       const { header: paymentHeader, hash: paymentHash } = await buildPaymentPayload(
         paymentRequest,
@@ -78,19 +88,23 @@ export function X402Payment({
         validBefore
       );
 
-      console.log("New payment created with hash:", paymentHash);
+      console.log("✅ New payment created with hash:", paymentHash);
 
       // Store payment header for submission to backend
       if (typeof window !== "undefined") {
         sessionStorage.setItem(`payment_${agentId}`, paymentHeader);
       }
 
+      console.log("🎉 Payment complete! Calling onPaymentComplete...");
       onPaymentComplete(paymentHash);
     } catch (error: any) {
+      console.error("❌ Payment error:", error);
       if (error.code === 4001) {
         onError("Transaction rejected by user");
+      } else if (error.message) {
+        onError(error.message);
       } else {
-        onError(error.message || "Payment failed");
+        onError(`Payment failed: ${String(error)}`);
       }
     } finally {
       setPaying(false);

@@ -37,17 +37,35 @@ AGENT_ESCROW_ADDRESS=0x4352F2319c0476607F5E1cC9FDd568246074dF14
 GEMINI_API_KEY=your-gemini-api-key-here
 BACKEND_PRIVATE_KEY=0x...your-private-key-here
 
-# Crypto.com Developer Platform SDK (for blockchain queries)
+# Crypto.com Developer Platform SDK
 CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY=your-developer-platform-api-key-here
 CRONOS_TESTNET_EXPLORER_KEY=your-explorer-key-here
+
+# Optional: OpenAI API Key (for AI Agent SDK - uses gpt-4o-mini, cheapest model)
+OPENAI_API_KEY=your-openai-api-key-here
+
+# Optional: Google Project ID (usually not needed for standard Gemini API)
+GOOGLE_PROJECT_ID=your-project-id-here
 ```
 
-Important notes:
-- BACKEND_PRIVATE_KEY is required for the backend to update contract metrics (executions, reputation)
-- GEMINI_API_KEY is required for AI agent execution
-- CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY is required for blockchain queries via SDK
-- CRONOS_TESTNET_EXPLORER_KEY is optional but recommended for blockchain queries
-- Never commit .env file (already in .gitignore)
+Required keys: BACKEND_PRIVATE_KEY for contract interactions. GEMINI_API_KEY for AI agent execution. CRYPTO_COM_DEVELOPER_PLATFORM_API_KEY for blockchain queries. CRONOS_TESTNET_EXPLORER_KEY recommended for blockchain queries.
+
+Optional keys: OPENAI_API_KEY enables AI Agent SDK with gpt-4o-mini. Cheapest model at $0.075 input and $0.30 output per 1M tokens. Node.js SDK only supports OpenAI, not Gemini. GOOGLE_PROJECT_ID usually not needed for standard Gemini API.
+
+Important: Never commit `.env` file (already in .gitignore).
+
+### Mainnet switch (optional)
+```env
+CRONOS_RPC_URL=https://evm.cronos.org
+AGENT_REGISTRY_ADDRESS=<mainnet-address>
+AGENT_ESCROW_ADDRESS=<mainnet-address>
+VVS_ROUTER_ADDRESS=0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae
+VVS_MOCK_MODE=false
+```
+
+Notes:
+- Payment required on mainnet; skipped on testnet mock mode.
+- VVS uses real router on mainnet; mock on testnet.
 
 ## Development
 
@@ -57,9 +75,7 @@ Start development server with auto-reload:
 npm run dev
 ```
 
-Server runs on http://localhost:3001
-
-The tsx watch command automatically restarts the server on file changes.
+Server runs on http://localhost:3001. The tsx watch command automatically restarts the server on file changes.
 
 ## Production
 
@@ -82,7 +98,8 @@ backend/
 │   ├── x402/            # x402 payment verification and settlement
 │   ├── api/             # REST API endpoints
 │   │   ├── agents.ts    # Agent execution and listing
-│   │   ├── chat.ts      # Unified chat endpoint
+│   │   ├── chat.ts      # Unified chat endpoint (includes VVS swap detection)
+│   │   ├── vvs-swap.ts  # VVS Finance swap execution endpoints
 │   │   ├── analytics.ts # Platform and agent analytics
 │   │   ├── logs.ts      # Execution and payment logs
 │   │   └── executions.ts # Execution history
@@ -97,76 +114,31 @@ backend/
 
 ## API Endpoints
 
-### POST /api/agents/:id/execute
+POST /api/agents/:id/execute: Execute an agent. Requires agent ID, input, and x402 payment header. Headers X-PAYMENT (base64 payment signature). Body { input: string, paymentHash: string }. Returns execution result with output and success status.
 
-Execute an agent. Requires agent ID, input, and x402 payment header.
+Flow: Verifies x402 payment via Cronos facilitator. Calls executeAgent() on contract (increments totalExecutions). Detects if real data is needed (market data, blockchain data). Fetches real data from Crypto.com APIs (MCP Server or SDK). Executes agent with Gemini AI (includes real data in prompt). Calls verifyExecution() on contract (updates successfulExecutions and reputation). Settles payment if successful. Returns result.
 
-Request: Headers X-PAYMENT (base64 payment signature). Body { input: string, paymentHash: string }.
+POST /api/vvs-swap/quote: Get VVS Finance swap quote. No payment required. Body { tokenIn: string, tokenOut: string, amountIn: string }. Returns quote with amountOut, path, and liquidity status.
 
-Response:
-```json
-{
-  "executionId": 1234567890,
-  "agentId": 1,
-  "output": "Agent execution result...",
-  "success": true,
-  "payerAddress": "0x..."
-}
-```
+POST /api/vvs-swap/execute: Execute VVS Finance swap. Requires x402 payment header. Headers X-PAYMENT (base64 payment signature). Body { tokenIn: string, tokenOut: string, amountIn: string, amountOutMin: string, recipient: string }. Returns unsigned transaction ready for signing.
 
-Flow: Verifies x402 payment via Cronos facilitator. Calls executeAgent() on contract (increments totalExecutions). Detects if real data is needed (market data, blockchain data). Fetches real data from Crypto.com APIs if needed. Executes agent with Gemini AI (includes real data in prompt). Calls verifyExecution() on contract (updates successfulExecutions and reputation). Settles payment if successful. Returns result.
+POST /api/chat: Unified chat endpoint. Automatically routes to right tools. Requires input and x402 payment header. Headers X-PAYMENT (base64 payment signature). Body { input: string, paymentHash: string }. Returns chat response with real data.
 
-### POST /api/chat
+Flow: Detects intent (market data, blockchain, contracts, content, swaps). Fetches real data if needed. For swap requests: Automatically extracts parameters, fetches live quote from VVS Finance DEX, provides swap details. Executes with Gemini. Returns formatted response.
 
-Unified chat endpoint. Automatically routes to right tools. Requires input and x402 payment header.
+GET /api/agents: List all available agents. Returns agent details including prices and reputation.
 
-Request: Headers X-PAYMENT (base64 payment signature). Body { input: string, paymentHash: string }.
+GET /api/agents/:id: Get agent details. Returns full agent information including execution metrics.
 
-Response:
-```json
-{
-  "executionId": 1234567890,
-  "output": "Chat response with real data...",
-  "success": true,
-  "payerAddress": "0x..."
-}
-```
+GET /api/analytics/platform: Get platform-wide analytics. Returns total agents, executions, revenue, success rate. Returns agent list with stats.
 
-Flow: Detects intent (market data, blockchain, contracts, content). Fetches real data if needed. Executes with Gemini. Returns formatted response.
+GET /api/analytics/agents/:id: Get agent analytics. Returns execution counts, revenue, success rate, reputation. All calculated from contract data.
 
-### GET /api/agents
+GET /api/logs/executions: Get execution logs with optional filters. Supports time-based filtering (today, 7d, 30d). Query parameters: agentId, userId, range, startTime, endTime, success, limit.
 
-List all available agents. Returns agent details including prices and reputation.
+GET /api/logs/payments: Get payment logs with optional filters. Supports status filtering and time ranges. Query parameters: agentId, userId, status, range, startTime, endTime, limit.
 
-### GET /api/agents/:id
-
-Get agent details. Returns full agent information including execution metrics.
-
-### GET /api/analytics/platform
-
-Get platform-wide analytics. Returns total agents, executions, revenue, success rate. Returns agent list with stats.
-
-### GET /api/analytics/agents/:id
-
-Get agent analytics. Returns execution counts, revenue, success rate, reputation. All calculated from contract data.
-
-### GET /api/logs/executions
-
-Get execution logs with optional filters. Supports time-based filtering (today, 7d, 30d).
-
-Query parameters: agentId - Filter by agent ID. userId - Filter by user address. range - Time range: "today", "7d", "30d". startTime - Custom start timestamp. endTime - Custom end timestamp. success - Filter by success status (true/false). limit - Max results (default: 100).
-
-### GET /api/logs/payments
-
-Get payment logs with optional filters. Supports status filtering and time ranges.
-
-Query parameters: agentId - Filter by agent ID. userId - Filter by user address. status - Filter by status: "pending", "settled", "verified", "failed", "refunded". range - Time range: "today", "7d", "30d". startTime - Custom start timestamp. endTime - Custom end timestamp. limit - Max results (default: 100).
-
-### GET /api/logs/activity
-
-Get recent activity feed (executions and payments combined).
-
-Query parameters: limit - Max results (default: 50).
+GET /api/logs/activity: Get recent activity feed (executions and payments combined). Query parameters: limit.
 
 ## Agent Execution Flow
 
@@ -174,23 +146,27 @@ Receive request: Validate input, check agent exists. Verify payment: Check x402 
 
 ## Crypto.com Integration
 
-### Market Data API
+Market Data via MCP Server: Connected to Crypto.com Market Data MCP Server at https://mcp.crypto.com/market-data/mcp. Uses Model Context Protocol for real-time data. Automatically fetches prices via get_ticker tool. Falls back to REST API if MCP unavailable. No API key required. Public MCP server.
 
-Automatic integration: Agents with "market", "price", "trading" keywords get market data access. Uses Crypto.com Exchange Public API (no API key required). Fetches real-time prices, volumes, 24h changes. Data included in prompt before Gemini execution.
+How it works: User asks "What is the price of Bitcoin?" System connects to MCP Server. Calls get_ticker tool with instrument_name: "BTC_USD". Returns real-time price data. Falls back to REST API if MCP fails.
 
-Example: User asks "What's the price of Bitcoin?" System fetches Real BTC price from Crypto.com API. Gemini receives Real data + user question. Gemini formats Professional response with real price.
+Logs to check: Look for "Connected to Crypto.com Market Data MCP Server" message. Look for "Using tool: get_ticker" in console. Look for "Market data fetched via MCP Server" confirmation.
 
-### Blockchain Data via Developer Platform SDK
+Blockchain Data via Developer Platform SDK: Crypto.com Developer Platform Client SDK fully integrated. Wallet module handles Wallet.balance() and Wallet.create(). Transaction module handles Transaction.getTransactionByHash(), Transaction.getTransactionStatus(), Transaction.getGasPrice(), Transaction.getFeeData(). Token module handles Token.getERC20TokenBalance(), Token.getTokenTransfers(), Token.getERC20Metadata(). Query priority routes to Developer Platform SDK first. RPC fallback available for block queries.
 
-Crypto.com Developer Platform Client SDK: Agents with "blockchain", "contract", "transaction" keywords get blockchain access. Requires Developer Platform API key from https://developer.crypto.com. Requires Cronos Explorer API key from https://explorer-api-doc.cronos.org. Uses Wallet.balance() method to fetch real blockchain data. Returns actual on-chain balances.
+Setup: Get Developer Platform API key from https://developer.crypto.com (create a project). Get Cronos Explorer API key from https://explorer-api-doc.cronos.org. Add keys to .env file. Agents automatically get blockchain tools.
 
-Setup: Get Developer Platform API key from https://developer.crypto.com (create a project). Get Cronos Explorer API key from https://explorer-api-doc.cronos.org. Configure DNS to use Google DNS (8.8.8.8, 8.8.4.4) for endpoint access. Add keys to .env file. Agents automatically get blockchain tools.
+How to verify SDK usage: Check backend console logs. Look for "Developer Platform Client SDK initialized with API key" message. Look for "Using Developer Platform Client SDK (Wallet.balance)..." in console. Look for "Balance fetched via Developer Platform SDK" confirmation.
 
-How to verify SDK usage: Check backend console logs. Look for "Developer Platform Client SDK initialized with API key" message. Look for "Using Developer Platform Client SDK (Wallet.balance)" in console. SDK queries return real blockchain data with status Success.
+AI Agent SDK: Node.js SDK uses OpenAI gpt-4o-mini. Cheapest model at $0.075 input and $0.30 output per 1M tokens. The @crypto.com/ai-agent-client Node.js SDK only supports OpenAI. Gemini support exists in REST API/Python SDK, but not in Node.js SDK. To use AI Agent SDK: Add OPENAI_API_KEY to .env. AI Agent SDK works perfectly for balance queries. Transaction and block queries get 403 from Explorer API but automatically fall back to Developer Platform SDK or RPC. System always returns correct answers. Current behavior: System skips AI Agent SDK when only Gemini is available, uses Developer Platform SDK fallback (works perfectly).
+
+VVS Finance DEX Integration: Agent-driven swap workflow via unified chat. Automatic swap intent detection in chat endpoint. Parameter extraction from natural language. Live quote fetching from VVS Finance DEX. Swap quote generation endpoint at POST /api/vvs-swap/quote. Swap execution endpoint at POST /api/vvs-swap/execute (requires x402 payment). Token swap transaction building. Liquidity checking. x402 payment settlement. Mock mode automatically enabled on testnet (VVS only on mainnet). Real quotes on mainnet. Mock quotes on testnet for demo. Intelligent routing and automated liquidity actions.
+
+Example: Ask "Swap 100 CRO for USDC" in chat. System detects swap intent, extracts parameters, fetches live quote, provides swap details. Execute swap with curl POST to /api/vvs-swap/execute with X-PAYMENT header and swap parameters.
 
 ## x402 Payment Integration
 
-Backend uses Cronos x402 facilitator for payments: Version x402 v1 (Cronos-specific). Facilitator URL https://facilitator.cronoslabs.org/v2/x402. Network cronos-testnet. Token Bridged USDC (Stargate) - 0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0.
+Backend uses Cronos x402 facilitator for payments. Version x402 v1 (Cronos-specific). Facilitator URL https://facilitator.cronoslabs.org/v2/x402. Network cronos-testnet. Token Bridged USDC (Stargate) - 0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0.
 
 Payment verification happens before execution. Payment settlement happens after success. All transparent on-chain.
 
@@ -200,9 +176,9 @@ Important: The backend requires the X402-Version: 1 header when calling facilita
 
 Agent engine executes AI agents using Google Gemini API (model: gemini-2.5-flash).
 
-Pre-configured agents: Agent #1 - Smart Contract Analyzer: Analyzes Solidity code, returns security report. Agent #2 - Market Data Agent: Fetches real-time market data, returns analysis (has Crypto.com API access). Agent #3 - Content Generator: Generates marketing content for Web3 projects. Agent #4 - Portfolio Analyzer: Analyzes DeFi portfolios, returns recommendations (has blockchain access).
+Pre-configured agents: Agent #1 - Smart Contract Analyzer analyzes Solidity code, returns security report. Agent #2 - Market Data Agent fetches real-time market data, returns analysis (has Crypto.com API access). Agent #3 - Content Generator generates marketing content for Web3 projects. Agent #4 - Portfolio Analyzer analyzes DeFi portfolios, returns recommendations (has blockchain access).
 
-Auto-generated agents: New agents (Agent #5+) automatically get prompts generated from their description. System analyzes description to determine tools needed. Agents with "market" keywords → Get market data access. Agents with "blockchain" keywords → Get blockchain access. All agents work immediately after registration, no configuration needed.
+Auto-generated agents: New agents (Agent #5+) automatically get prompts generated from their description. System analyzes description to determine tools needed. Agents with "market" keywords get market data access. Agents with "blockchain" keywords get blockchain access. All agents work immediately after registration, no configuration needed.
 
 Tool detection: System automatically detects if agent needs real data. Market data agents get Crypto.com Exchange API access. Blockchain agents get Crypto.com Developer Platform SDK access (if configured). Text-only agents work without tools.
 
@@ -212,7 +188,7 @@ Retry logic: Automatic retry for transient errors (503, 429, 500). Exponential b
 
 Backend connects to AgentRegistry contract: Reads agent information. Calls executeAgent() to create execution records. Calls verifyExecution() to update metrics. Updates reputation scores automatically.
 
-Metric updates: totalExecutions: Incremented when executeAgent() is called. successfulExecutions: Incremented when verifyExecution() is called with success=true. reputation: Calculated as (successfulExecutions * 1000) / totalExecutions.
+Metric updates: totalExecutions incremented when executeAgent() is called. successfulExecutions incremented when verifyExecution() is called with success=true. reputation calculated as (successfulExecutions * 1000) / totalExecutions.
 
 Important: Metrics update even when agent execution fails. Failed execution increments totalExecutions but not successfulExecutions. Reputation decreases accordingly.
 
@@ -274,11 +250,16 @@ Test health check:
 curl http://localhost:3001/health
 ```
 
+## Integrations
+
+Crypto.com Developer Platform SDK: Fully integrated for on-chain wallet operations. Wallet operations (balance, create) work. Token operations (balance, transfers) work. Transaction lookups work. All use x402 for settlement.
+
+Crypto.com Market Data MCP Server: MCP Server connected at https://mcp.crypto.com/market-data/mcp. Real-time price data via MCP protocol. Automatic REST API fallback.
+
+Crypto.com AI Agent SDK: Node.js SDK integrated on Cronos EVM. Uses OpenAI gpt-4o-mini for cost optimization. Balance queries work directly. Transaction and block queries automatically fall back to Developer Platform SDK or RPC when Explorer API returns 403. System ensures all queries succeed.
+
+VVS Finance DEX: Agent-driven trade workflows via unified chat. Intelligent swap routing. Automatic parameter extraction. Live quote fetching. Swap quote and execution endpoints. x402-powered payment settlement. Mock mode on testnet. Real swaps on mainnet. Fully automated agent-driven workflow.
+
 ## Support
 
-For issues or questions:
-- Cronos Documentation: https://docs.cronos.org
-- x402 Documentation: https://docs.cronos.org/x402
-- Google Gemini API: https://ai.google.dev
-- Crypto.com Developer Platform: https://developer.crypto.com
-- Node.js Documentation: https://nodejs.org/docs
+For issues or questions: Cronos Documentation at https://docs.cronos.org. x402 Documentation at https://docs.cronos.org/x402. Google Gemini API at https://ai.google.dev. OpenAI API at https://platform.openai.com. Crypto.com Developer Platform at https://developer.crypto.com. Crypto.com Market Data MCP at https://mcp.crypto.com/docs. Node.js Documentation at https://nodejs.org/docs.

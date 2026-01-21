@@ -7,7 +7,7 @@ import { defineChain } from 'viem'
 export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ''
 
 // Define Cronos Testnet network
-const cronosTestnet = defineChain({
+export const cronosTestnet = defineChain({
   id: 338,
   name: 'Cronos Testnet',
   network: 'cronos-testnet',
