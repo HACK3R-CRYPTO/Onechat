@@ -988,5 +988,75 @@
     "status": "settled",
     "timestamp": 1769027577735,
     "executionId": 1067314831
+  },
+  {
+    "paymentHash": "0x4928aa52fb1633a83a6c8ac45626b64e5da066d92d647980ed42010d7fb179e8",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769030459316,
+    "executionId": 699639377
+  },
+  {
+    "paymentHash": "0xde562e76d79bd3d525993505925aeedfdae5308bfb802e6b85c5df3ad8097bc2",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769030604617,
+    "executionId": 1058442324
+  },
+  {
+    "paymentHash": "0x7ab1417d06ed1356f78cbb0128c4756468b6928f13889d70999c4171dd26b3ff",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769030764329,
+    "executionId": 1537082999
+  },
+  {
+    "paymentHash": "0xa865b9977b94d4d20642a9392bec4ef5e6edec9c59df32f015a72d57cda11070",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769030936896,
+    "executionId": 160190802
+  },
+  {
+    "paymentHash": "0x4be092a650eff1f91f1a25aca4460a135dc62b8b12c9d847b54488277b1e439b",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769031042278,
+    "executionId": 770229525
+  },
+  {
+    "paymentHash": "0xe74a8fd0b4fddd20ee2d0e8503c4edf538084b5e5cf867ffbe42a00c1bc4527e",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769031194245,
+    "executionId": 1232929968
+  },
+  {
+    "paymentHash": "0xda00bbdcd9cafe9c884218615eb772cdc73f21e4664bf4141823bf5fa48ae67e",
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "amount": 0.25,
+    "status": "settled",
+    "timestamp": 1769031285249,
+    "executionId": 1011950776
   }
 ]

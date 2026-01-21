@@ -1174,5 +1174,89 @@
     "success": true,
     "timestamp": 1769027585294,
     "verified": false
+  },
+  {
+    "executionId": 699639377,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x4928aa52fb1633a83a6c8ac45626b64e5da066d92d647980ed42010d7fb179e8",
+    "input": "What's the price of Bitcoin and show my portfolio\n\n[Real Market Data for BTC]:\n{\n  \"symbol\": \"BTC\",\n  \"price\": \"N/A\",\n  \"price24hAgo\": \"N/A\",\n  \"change24h\": \"N/A\",\n  \"volume24h\": \"N/A\",\n  \"high24h\": \"N/A\",\n  \"low24h\": \"N/A\",\n  \"timestamp\": 1769030459316,\n  \"source\": \"Crypto.com Market Data MCP Server\",\n  \"rawData\": {\n    \"type\": \"text\",\n    \"text\": \"Here is the Crypto.com Exchange ticker {\\\"instrument_name\\\":\\\"BTC_USD\\\",\\\"high\\\":\\\"90520.02\\\",\\\"low\\\":\\\"87176.16\\\",\\\"last\\\":\\\"90176.00\\\",\\\"change\\\":\\\"0.0065\\\",\\\"best_bid\\\":\\\"90169.00\\\",\\\"best_bid_size\\\":\\\"0.25016\\\",\\\"best_ask\\\":\\\"90169.01\\\",\\\"best_ask_size\\\":\\\"0.50209\\\",\\\"volume\\\":\\\"20640.3743\\\",\\\"volume_value\\\":\\\"1836615366.33\\\",\\\"open_interest\\\":\\\"0\\\",\\\"timestamp\\\":\\\"1970-01-01T00:00:00Z\\\"}\"\n  }\n}\n\n\n[Portfolio Data]:\nUser wallet: 0xd2df53D9791e98Db221842Dd085F4144014BBE2a\nToken balances:\n- CRO: 56.682331182245779957\n- USDC: 6910000\n",
+    "output": "Here's the information you requested:\n\nThe current price of Bitcoin (BTC) is **$90,176.00**.\n\n### Your Portfolio:\n**Wallet Address:** `0xd2df53D9791e98Db221842Dd085F4144014BBE2a`\n\n**Token Balances:**\n*   **CRO:** 56.682331182245779957\n*   **USDC:** 6910000",
+    "success": true,
+    "timestamp": 1769030464954,
+    "verified": false
+  },
+  {
+    "executionId": 1058442324,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xde562e76d79bd3d525993505925aeedfdae5308bfb802e6b85c5df3ad8097bc2",
+    "input": "Get all tickers and show my transaction history\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.\n\n[Real Data - Fetched via Crypto.com Developer Platform SDK (fallback)]:\nHere are the current tickers available on Crypto.com Exchange:\n\n1. **N/A**\n\n2. **N/A**\n\n3. **N/A**\n\n4. **N/A**\n\n5. **N/A**\n\n6. **N/A**\n\n7. **N/A**\n\n8. **N/A**\n\n9. **N/A**\n\n10. **N/A**\n\n11. **N/A**\n\n12. **N/A**\n\n13. **N/A**\n\n14. **N/A**\n\n15. **N/A**\n\n16. **N/A**\n\n17. **N/A**\n\n18. **N/A**\n\n19. **N/A**\n\n20. **N/A**\n\n\n... and 819 more tickers available.\nTo get ticker information for a specific instrument, ask: \"What's the ticker information of <instrument_name>\"\n\n",
+    "output": "Here are the current tickers available:\n\nThere are over 800 tickers available on the Crypto.com Exchange. If you'd like to get information for a specific instrument, please ask: \"What's the ticker information of <instrument_name>\".\n\nRegarding your transaction history, I need a valid Ethereum address (starting with 0x) to retrieve that information. Please provide the address you'd like to check.\n\nAlternatively, you can manually check your transaction history using a blockchain explorer like Cronos Explorer (https://explorer.cronos.org/testnet) by entering your wallet address there.",
+    "success": true,
+    "timestamp": 1769030608370,
+    "verified": false
+  },
+  {
+    "executionId": 1537082999,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x7ab1417d06ed1356f78cbb0128c4756468b6928f13889d70999c4171dd26b3ff",
+    "input": "what do you mean by instrument name",
+    "output": "An \"instrument name\" refers to the specific identifier or designation given to a financial instrument.\n\nIn finance, an \"instrument\" is a tradable asset of any kind, such as:\n*   **Stocks:** e.g., \"Apple Inc.\" or \"AAPL\"\n*   **Bonds:** e.g., \"US Treasury Bond 2.5% 2030\"\n*   **Commodities:** e.g., \"Gold futures\"\n*   **Derivatives:** e.g., \"S&P 500 Index Futures\"\n*   **Currencies:** e.g., \"EUR/USD\"\n*   **Cryptocurrencies:** e.g., \"Bitcoin\" or \"BTC\", \"Ethereum\" or \"ETH\"\n\nThe \"instrument name\" is the label used to identify that particular asset in trading systems, market data feeds, and financial reports, ensuring clarity and precision when referring to it. It often includes both a common name and a ticker symbol.",
+    "success": true,
+    "timestamp": 1769030767395,
+    "verified": false
+  },
+  {
+    "executionId": 160190802,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xa865b9977b94d4d20642a9392bec4ef5e6edec9c59df32f015a72d57cda11070",
+    "input": "Get all tickers and show my transaction history\n\nNote: Please include a valid Ethereum address (starting with 0x) in your query, or the system will use your wallet address.\n\n[Real Data - Fetched via Crypto.com Developer Platform SDK (fallback)]:\nHere are the current tickers available on Crypto.com Exchange:\n\n1. **N/A**\n\n2. **N/A**\n\n3. **N/A**\n\n4. **N/A**\n\n5. **N/A**\n\n6. **N/A**\n\n7. **N/A**\n\n8. **N/A**\n\n9. **N/A**\n\n10. **N/A**\n\n11. **N/A**\n\n12. **N/A**\n\n13. **N/A**\n\n14. **N/A**\n\n15. **N/A**\n\n16. **N/A**\n\n17. **N/A**\n\n18. **N/A**\n\n19. **N/A**\n\n20. **N/A**\n\n\n... and 819 more tickers available.\nTo get ticker information for a specific instrument, ask: \"What's the ticker information of <instrument_name>\"\n\n",
+    "output": "Here are the current tickers available on Crypto.com Exchange:\n\nI can list over 800 tickers. To get ticker information for a specific instrument, please ask: \"What's the ticker information of <instrument_name>\".\n\nRegarding your transaction history, I was unable to retrieve it because a specific wallet address was not provided in your query. Currently, direct blockchain query services for transaction history are unavailable.\n\nTo check your transaction history, you can use a blockchain explorer. For Cronos transactions, please visit: [https://explorer.cronos.org/testnet](https://explorer.cronos.org/testnet). You will need to enter your wallet address (starting with 0x) into the search bar to view its transaction history.",
+    "success": true,
+    "timestamp": 1769030944577,
+    "verified": false
+  },
+  {
+    "executionId": 770229525,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x4be092a650eff1f91f1a25aca4460a135dc62b8b12c9d847b54488277b1e439b",
+    "input": "What's the price of eth and show my portfolio\n\n[Real Market Data for ETH]:\n{\n  \"symbol\": \"ETH\",\n  \"price\": \"N/A\",\n  \"price24hAgo\": \"N/A\",\n  \"change24h\": \"N/A\",\n  \"volume24h\": \"N/A\",\n  \"high24h\": \"N/A\",\n  \"low24h\": \"N/A\",\n  \"timestamp\": 1769031042278,\n  \"source\": \"Crypto.com Market Data MCP Server\",\n  \"rawData\": {\n    \"type\": \"text\",\n    \"text\": \"Here is the Crypto.com Exchange ticker {\\\"instrument_name\\\":\\\"ETH_USD\\\",\\\"high\\\":\\\"3067.42\\\",\\\"low\\\":\\\"2863.93\\\",\\\"last\\\":\\\"3031.21\\\",\\\"change\\\":\\\"0.0122\\\",\\\"best_bid\\\":\\\"3031.20\\\",\\\"best_bid_size\\\":\\\"0.7527\\\",\\\"best_ask\\\":\\\"3031.21\\\",\\\"best_ask_size\\\":\\\"7.7210\\\",\\\"volume\\\":\\\"241218.9367\\\",\\\"volume_value\\\":\\\"713485302.66\\\",\\\"open_interest\\\":\\\"0\\\",\\\"timestamp\\\":\\\"1970-01-01T00:00:00Z\\\"}\"\n  }\n}\n\n\n[Portfolio Data]:\nUser wallet: 0xd2df53D9791e98Db221842Dd085F4144014BBE2a\nToken balances:\n- CRO: 56.682331182245779957\n- USDC: 6510000\n",
+    "output": "The current price of ETH is **$3031.21 USD** on Crypto.com Exchange.\n\nHere is your portfolio for wallet address `0xd2df53D9791e98Db221842Dd085F4144014BBE2a`:\n*   **CRO**: 56.682331182245779957\n*   **USDC**: 6,510,000",
+    "success": true,
+    "timestamp": 1769031049757,
+    "verified": false
+  },
+  {
+    "executionId": 1232929968,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xe74a8fd0b4fddd20ee2d0e8503c4edf538084b5e5cf867ffbe42a00c1bc4527e",
+    "input": "get tickers of eth\n\n[Real Market Data for ETH]:\n{\n  \"symbol\": \"ETH\",\n  \"price\": \"N/A\",\n  \"price24hAgo\": \"N/A\",\n  \"change24h\": \"N/A\",\n  \"volume24h\": \"N/A\",\n  \"high24h\": \"N/A\",\n  \"low24h\": \"N/A\",\n  \"timestamp\": 1769031175614,\n  \"source\": \"Crypto.com Market Data MCP Server\",\n  \"rawData\": {\n    \"type\": \"text\",\n    \"text\": \"Here is the Crypto.com Exchange ticker {\\\"instrument_name\\\":\\\"ETH_USD\\\",\\\"high\\\":\\\"3067.42\\\",\\\"low\\\":\\\"2863.93\\\",\\\"last\\\":\\\"3033.78\\\",\\\"change\\\":\\\"0.0136\\\",\\\"best_bid\\\":\\\"3033.77\\\",\\\"best_bid_size\\\":\\\"0.0007\\\",\\\"best_ask\\\":\\\"3033.78\\\",\\\"best_ask_size\\\":\\\"9.2370\\\",\\\"volume\\\":\\\"241391.7846\\\",\\\"volume_value\\\":\\\"714012932.27\\\",\\\"open_interest\\\":\\\"0\\\",\\\"timestamp\\\":\\\"1970-01-01T00:00:00Z\\\"}\"\n  }\n}\n\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\nUnable to fetch blockchain data via SDK: Failed to get ticker for ETH: Failed to fetch ticker for ETH: Failed to retrieve ticker by instrument. Please rephrase your query or specify what type of data you need (balance, transactions, token balance, etc.).\n",
+    "output": "Here are the real-time ticker details for ETH (Ethereum) from Crypto.com Exchange:\n\n*   **Instrument:** ETH/USD\n*   **Last Price:** $3033.78\n*   **24h High:** $3067.42\n*   **24h Low:** $2863.93\n*   **24h Change:** +1.36%\n*   **24h Volume (ETH):** 241,391.78 ETH\n*   **24h Volume (USD):** $714,012,932.27\n*   **Best Bid:** $3033.77\n*   **Best Ask:** $3033.78",
+    "success": true,
+    "timestamp": 1769031202338,
+    "verified": false
+  },
+  {
+    "executionId": 1011950776,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xda00bbdcd9cafe9c884218615eb772cdc73f21e4664bf4141823bf5fa48ae67e",
+    "input": "show my portfolio\n\n[Portfolio Data]:\nUser wallet: 0xd2df53D9791e98Db221842Dd085F4144014BBE2a\nToken balances:\n- CRO: 56.682331182245779957\n- USDC: 6310000\n",
+    "output": "Here is your portfolio overview for wallet address `0xd2df53D9791e98Db221842Dd085F4144014BBE2a`:\n\n*   **CRO**: 56.682331182245779957\n*   **USDC**: 6310000",
+    "success": true,
+    "timestamp": 1769031291509,
+    "verified": false
   }
 ]

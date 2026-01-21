@@ -159,7 +159,33 @@ export async function executeAgent(
         const symbol = match[1].toUpperCase();
         console.log(`[Agent ${agentId}] Fetching market data for ${symbol}...`);
         try {
-          const marketData = await fetchMarketData(symbol);
+          // OPTIMIZATION: Use cache if available (shared with chat endpoint)
+          let marketData = null;
+          try {
+            // Try to get from cache (if cache functions are available)
+            const cacheModule = require("../api/chat");
+            if (cacheModule.getCachedMarketData) {
+              marketData = cacheModule.getCachedMarketData(symbol);
+            }
+          } catch (e) {
+            // Cache not available, continue with fetch
+          }
+          
+          if (!marketData) {
+            marketData = await fetchMarketData(symbol);
+            // Cache the result if cache is available
+            try {
+              const cacheModule = require("../api/chat");
+              if (cacheModule.setCachedMarketData && marketData) {
+                cacheModule.setCachedMarketData(symbol, marketData);
+              }
+            } catch (e) {
+              // Cache not available, continue
+            }
+          } else {
+            console.log(`[Agent ${agentId}] ✅ Market data from cache`);
+          }
+          
           if (marketData) {
             realDataContext += `\n\n[Real Market Data for ${symbol}]:\n${JSON.stringify(marketData, null, 2)}\n`;
             console.log(`[Agent ${agentId}] ✅ Market data fetched successfully`);

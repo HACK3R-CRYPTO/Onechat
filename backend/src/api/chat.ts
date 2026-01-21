@@ -9,6 +9,373 @@ import { determineAgentTools, fetchMarketData, executeBlockchainQuery, createCry
 import { releasePaymentToDeveloper } from "../lib/contract";
 import { getVVSQuote, getTokenAddress, buildVVSSwapTransaction, getTokenDecimals } from "../lib/vvs-finance";
 
+/**
+ * OPTIMIZATION: Simple in-memory cache for market data
+ * Cache TTL: 30 seconds (market data changes frequently but not every second)
+ */
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // Time to live in milliseconds
+}
+
+const marketDataCache = new Map<string, CacheEntry<any>>();
+const MARKET_DATA_CACHE_TTL = 30 * 1000; // 30 seconds
+
+function getCachedMarketData(symbol: string): any | null {
+  const entry = marketDataCache.get(symbol);
+  if (entry && Date.now() - entry.timestamp < entry.ttl) {
+    console.log(`[Cache] ✅ Market data cache hit for ${symbol}`);
+    return entry.data;
+  }
+  if (entry) {
+    marketDataCache.delete(symbol); // Remove expired entry
+  }
+  return null;
+}
+
+function setCachedMarketData(symbol: string, data: any): void {
+  marketDataCache.set(symbol, {
+    data,
+    timestamp: Date.now(),
+    ttl: MARKET_DATA_CACHE_TTL,
+  });
+  console.log(`[Cache] 💾 Market data cached for ${symbol}`);
+}
+
+// Export cache functions for use in executor.ts
+export { getCachedMarketData, setCachedMarketData };
+
+/**
+ * OPTIMIZATION: Parallel data fetching helper
+ * Fetches all independent data sources in parallel for faster response times
+ */
+async function fetchDataInParallel(params: {
+  needsMarketData: boolean;
+  needsBlockchain: boolean;
+  needsSwap: boolean;
+  needsTransfer: boolean;
+  needsPortfolio: boolean;
+  needsHistory: boolean;
+  input: string;
+  inputLower: string;
+  verification: any;
+}): Promise<{
+  marketData: any;
+  blockchainData: string | null;
+  swapData: { swapTransactionData: any; swapQuoteInfo: any } | null;
+  transferData: any;
+  portfolioData: any;
+  transactionHistory: any;
+  realDataContext: string;
+}> {
+  const {
+    needsMarketData,
+    needsBlockchain,
+    needsSwap,
+    needsTransfer,
+    needsPortfolio,
+    needsHistory,
+    input,
+    inputLower,
+    verification,
+  } = params;
+
+  const results = {
+    marketData: null as any,
+    blockchainData: null as string | null,
+    swapData: null as { swapTransactionData: any; swapQuoteInfo: any } | null,
+    transferData: null as any,
+    portfolioData: null as any,
+    transactionHistory: null as any,
+    realDataContext: "",
+  };
+
+  const promises: Array<Promise<void | null>> = [];
+
+  // 1. Market data fetch (parallel)
+  if (needsMarketData) {
+    let symbol: string | null = null;
+    const priceOfPattern = /(?:price|cost)\s+of\s+([a-z]+)(?:\s+coin)?/i;
+    const priceOfMatch = input.match(priceOfPattern);
+    if (priceOfMatch) {
+      symbol = priceOfMatch[1];
+    } else {
+      const pricePattern = /(?:current\s+)?([a-z]{2,10})\s+price/i;
+      const priceMatch = input.match(pricePattern);
+      if (priceMatch) {
+        symbol = priceMatch[1];
+      } else {
+        const directSymbolPattern = /\b(bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|polygon|matic|doge|dogecoin|shiba|shib)\b/i;
+        const directMatch = input.match(directSymbolPattern);
+        if (directMatch) {
+          symbol = directMatch[1];
+        }
+      }
+    }
+
+    if (symbol) {
+      const symbolMap: Record<string, string> = {
+        bitcoin: "BTC", btc: "BTC", ethereum: "ETH", eth: "ETH",
+        solana: "SOL", sol: "SOL", cardano: "ADA", ada: "ADA",
+        polygon: "MATIC", matic: "MATIC", doge: "DOGE", dogecoin: "DOGE",
+        shiba: "SHIB", shib: "SHIB",
+      };
+      const normalizedSymbol = symbolMap[symbol.toLowerCase()] || symbol.toUpperCase();
+      
+      // Check cache first
+      const cachedData = getCachedMarketData(normalizedSymbol);
+      if (cachedData) {
+        results.marketData = { symbol: normalizedSymbol, data: cachedData };
+      } else {
+        // Fetch and cache
+        promises.push(
+          fetchMarketData(normalizedSymbol)
+            .then((data) => {
+              if (data && !data.error) {
+                setCachedMarketData(normalizedSymbol, data);
+                results.marketData = { symbol: normalizedSymbol, data };
+              }
+            })
+            .catch((err) => console.warn(`[Chat] Market data fetch failed:`, err))
+        );
+      }
+    }
+  }
+
+  // 2. Blockchain data fetch (parallel) - simplified for parallel execution
+  if (needsBlockchain) {
+    promises.push(
+      (async () => {
+        try {
+          const blockchainClient = createCryptoComClient();
+          if (blockchainClient && process.env.OPENAI_API_KEY) {
+            const blockchainQuery = input.toLowerCase().includes("balance") && 
+              !input.toLowerCase().includes("0x") && verification.payerAddress
+              ? `${input} for address ${verification.payerAddress}`
+              : input;
+            
+            const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
+            if (blockchainResult && !blockchainResult.includes("not available") && 
+                !blockchainResult.includes("Error:") && !blockchainResult.includes("403")) {
+              results.blockchainData = blockchainResult;
+            }
+          }
+        } catch (err) {
+          console.warn(`[Chat] Blockchain data fetch failed:`, err);
+        }
+      })()
+    );
+  }
+
+  // 3. Swap quote fetch (parallel)
+  if (needsSwap) {
+    promises.push(
+      (async () => {
+        try {
+          const swapMatch = input.match(/(?:swap|exchange|trade|convert)\s+(\d+(?:\.\d+)?)\s+(\w+)\s+(?:for|to|into)\s+(\w+)/i);
+          if (swapMatch) {
+            const amountIn = swapMatch[1];
+            const tokenInSymbol = swapMatch[2].toUpperCase();
+            const tokenOutSymbol = swapMatch[3].toUpperCase();
+            
+            const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+            const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
+            const wantsMainnet = /mainnet|main|production/i.test(input);
+            const networkForLookup = wantsMainnet || !isTestnet ? 'mainnet' : 'testnet';
+            
+            const tokenInAddress = await getTokenAddress(tokenInSymbol, networkForLookup) || tokenInSymbol;
+            const tokenOutAddress = await getTokenAddress(tokenOutSymbol, networkForLookup) || tokenOutSymbol;
+            const amountInWei = ethers.parseUnits(amountIn, 18);
+            
+            const quote = await getVVSQuote(tokenInAddress, tokenOutAddress, amountInWei.toString(), wantsMainnet);
+            if (quote) {
+              const tokenOutDecimals = getTokenDecimals(tokenOutAddress);
+              const amountOut = ethers.formatUnits(quote.amountOut, tokenOutDecimals);
+              const amountOutMin = (BigInt(quote.amountOut) * 99n / 100n).toString();
+              
+              results.swapData = {
+                swapTransactionData: buildVVSSwapTransaction(
+                  tokenInAddress,
+                  tokenOutAddress,
+                  amountInWei.toString(),
+                  amountOutMin,
+                  verification.payerAddress || "0x0000000000000000000000000000000000000000"
+                ),
+                swapQuoteInfo: {
+                  amountIn,
+                  tokenIn: tokenInSymbol,
+                  tokenOut: tokenOutSymbol,
+                  expectedAmountOut: amountOut,
+                  network: wantsMainnet || !isTestnet ? "Mainnet" : "Testnet",
+                },
+              };
+            }
+          }
+        } catch (err) {
+          console.warn(`[Chat] Swap quote fetch failed:`, err);
+        }
+      })()
+    );
+  }
+
+  // 4. Portfolio fetch (parallel)
+  if (needsPortfolio && verification.payerAddress) {
+    promises.push(
+      (async () => {
+        try {
+          const { initDeveloperPlatformSDK } = require("../agent-engine/tools");
+          const sdk = initDeveloperPlatformSDK();
+          if (sdk && sdk.Wallet && sdk.Token) {
+            const balances: Array<{ symbol: string; balance: string; contractAddress?: string }> = [];
+            
+            const nativeBalance = await sdk.Wallet.balance(verification.payerAddress);
+            if (nativeBalance?.data?.balance) {
+              balances.push({ symbol: 'CRO', balance: nativeBalance.data.balance });
+            }
+            
+            const commonTokens = [
+              { address: '0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0', symbol: 'USDC' },
+              { address: '0x2D03bECE6747ADC00E1A131bBA1469C15FD11E03', symbol: 'VVS' },
+            ];
+            
+            for (const token of commonTokens) {
+              try {
+                const tokenBalance = await sdk.Token.getERC20TokenBalance(verification.payerAddress, token.address);
+                if (tokenBalance?.data?.balance && parseFloat(tokenBalance.data.balance) > 0) {
+                  balances.push({
+                    symbol: token.symbol,
+                    balance: tokenBalance.data.balance,
+                    contractAddress: token.address,
+                  });
+                }
+              } catch (e) {
+                // Skip failed tokens
+              }
+            }
+            
+            if (balances.length > 0) {
+              results.portfolioData = {
+                address: verification.payerAddress,
+                balances,
+              };
+            }
+          }
+        } catch (err) {
+          console.warn(`[Chat] Portfolio fetch failed:`, err);
+        }
+      })()
+    );
+  }
+
+  // 5. Transaction history fetch (parallel) - OPTIMIZED: Faster with timeout and reduced blocks
+  // OPTIMIZATION: Use payer's address automatically when user says "my transaction history"
+  if (needsHistory && verification.payerAddress) {
+    promises.push(
+      (async () => {
+        try {
+          console.log(`[Chat] 📜 Fetching transaction history for ${verification.payerAddress}...`);
+          // OPTIMIZATION: Add 3 second timeout (reduced from 5s) to prevent blocking
+          const timeoutPromise = new Promise<void>((resolve) => 
+            setTimeout(() => {
+              console.log(`[Chat] ⚠️ Transaction history fetch timed out after 3s`);
+              resolve();
+            }, 3000)
+          );
+          
+          const fetchPromise = (async () => {
+            const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const currentBlock = await provider.getBlockNumber();
+            const txList: any[] = [];
+            // OPTIMIZATION: Reduce blocks to scan from 10 to 5 for much faster response
+            const blocksToCheck = Math.min(5, currentBlock);
+            const addressLower = verification.payerAddress.toLowerCase();
+            
+            // OPTIMIZATION: Fetch only the most recent 5 blocks in parallel
+            const blockPromises = [];
+            for (let i = 0; i < blocksToCheck; i++) {
+              blockPromises.push(
+                provider.getBlock(currentBlock - i, true).catch(() => null)
+              );
+            }
+            
+            const blocks = await Promise.all(blockPromises);
+            
+            // OPTIMIZATION: Process blocks and transactions in parallel, limit to first 3 transactions per block
+            const allTxPromises: Promise<any>[] = [];
+            for (const block of blocks) {
+              if (!block || txList.length >= 10) break;
+              
+              if (block.transactions && Array.isArray(block.transactions)) {
+                // Only check first 3 transactions per block for speed
+                for (const txHash of block.transactions.slice(0, 3)) {
+                  if (txList.length >= 10) break;
+                  allTxPromises.push(
+                    provider.getTransaction(txHash).then(tx => {
+                      if (tx?.hash && (tx.from?.toLowerCase() === addressLower || tx.to?.toLowerCase() === addressLower)) {
+                        return {
+                          hash: tx.hash,
+                          from: tx.from || 'N/A',
+                          to: tx.to || 'N/A',
+                          value: tx.value ? ethers.formatEther(tx.value) + ' CRO' : '0 CRO',
+                          timestamp: block.timestamp ? Number(block.timestamp) * 1000 : Date.now(),
+                          blockNumber: Number(block.number),
+                        };
+                      }
+                      return null;
+                    }).catch(() => null)
+                  );
+                }
+              }
+            }
+            
+            const txResults = await Promise.all(allTxPromises);
+            txList.push(...txResults.filter(tx => tx !== null && tx !== undefined));
+            
+            if (txList.length > 0) {
+              txList.sort((a, b) => b.blockNumber - a.blockNumber);
+              results.transactionHistory = {
+                address: verification.payerAddress,
+                transactions: txList.slice(0, 10), // Limit to 10 transactions
+              };
+              console.log(`[Chat] ✅ Transaction history fetched: ${txList.length} transactions`);
+            } else {
+              console.log(`[Chat] ℹ️ No transactions found in last ${blocksToCheck} blocks`);
+            }
+          })();
+          
+          await Promise.race([fetchPromise, timeoutPromise]);
+        } catch (err) {
+          console.warn(`[Chat] Transaction history fetch failed:`, err);
+        }
+      })()
+    );
+  }
+
+  // Wait for all parallel fetches to complete
+  await Promise.allSettled(promises);
+
+  // Build context string from results
+  if (results.marketData) {
+    results.realDataContext += `\n\n[Real Market Data for ${results.marketData.symbol}]:\n${JSON.stringify(results.marketData.data, null, 2)}\n`;
+  }
+  if (results.blockchainData) {
+    results.realDataContext += `\n\n[Real Blockchain Data]:\n${results.blockchainData}\n`;
+  }
+  if (results.swapData) {
+    results.realDataContext += `\n\n[Swap Quote]: ${results.swapData.swapQuoteInfo.amountIn} ${results.swapData.swapQuoteInfo.tokenIn} → ${results.swapData.swapQuoteInfo.expectedAmountOut} ${results.swapData.swapQuoteInfo.tokenOut} (${results.swapData.swapQuoteInfo.network})\n`;
+  }
+  if (results.portfolioData) {
+    results.realDataContext += `\n\n[Portfolio Data]:\nUser wallet: ${results.portfolioData.address}\nToken balances:\n${results.portfolioData.balances.map((b: any) => `- ${b.symbol}: ${b.balance}`).join('\n')}\n`;
+  }
+  if (results.transactionHistory) {
+    results.realDataContext += `\n\n[Transaction History]:\nUser wallet: ${results.transactionHistory.address}\nRecent transactions: ${results.transactionHistory.transactions.length}\n`;
+  }
+
+  return results;
+}
+
 const router = Router();
 
 /**
@@ -184,13 +551,8 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     // Detect portfolio queries: "portfolio", "my tokens", "my balances", "show my wallet"
     const needsPortfolio = /(?:portfolio|my tokens|my balances|show my wallet|wallet balance|all my tokens|token holdings)/i.test(input);
     // Detect transaction history queries: "my transactions", "transaction history", "recent transactions"
-    const needsHistory = /(?:my transactions|transaction history|recent transactions|tx history|last transactions|show my tx)/i.test(input);
-    
-    let swapTransactionData: { to: string; data: string; value?: string } | null = null;
-    let swapQuoteInfo: { amountIn: string; tokenIn: string; tokenOut: string; expectedAmountOut: string; network: string } | null = null;
-    let transferMagicLink: { url: string; amount: string; token: string; to: string; type: string } | null = null;
-    let portfolioData: { address: string; balances: Array<{ symbol: string; balance: string; contractAddress?: string }> } | null = null;
-    let transactionHistory: { address: string; transactions: Array<{ hash: string; from: string; to: string; value: string; timestamp: number; blockNumber: number }> } | null = null;
+    // Also detect when user says "show my transaction history" or similar
+    const needsHistory = /(?:my transactions|transaction history|recent transactions|tx history|last transactions|show my tx|show.*transaction)/i.test(input);
     
     if (needsSwap) {
       console.log(`[Chat] 💱 Swap request detected in input: "${input}"`);
@@ -205,63 +567,73 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     let enhancedInput = input;
     let realDataContext = "";
 
-    // Fetch market data if needed
-    if (needsMarketData) {
-      // Improved regex to handle "price of Bitcoin" correctly
-      // Try to match common patterns and extract symbol
-      let symbol: string | null = null;
+    // OPTIMIZATION: Fetch independent data in parallel for faster response
+    // Note: Blockchain queries with complex fallbacks are handled separately below
+    const parallelDataResults = await fetchDataInParallel({
+      needsMarketData,
+      needsBlockchain: false, // Handle blockchain separately due to complex fallback logic
+      needsSwap,
+      needsTransfer: false, // Transfer needs special handling
+      needsPortfolio,
+      needsHistory,
+      input,
+      inputLower: input.toLowerCase(),
+      verification,
+    });
+
+    // Merge parallel results into context
+    realDataContext += parallelDataResults.realDataContext;
+    
+    // Extract results for later use
+    const swapTransactionData = parallelDataResults.swapData?.swapTransactionData || null;
+    const swapQuoteInfo = parallelDataResults.swapData?.swapQuoteInfo || null;
+    const portfolioData = parallelDataResults.portfolioData || null;
+    const transactionHistory = parallelDataResults.transactionHistory || null;
+    let transferMagicLink: { url: string; amount: string; token: string; to: string; type: string } | null = null;
+
+    // Add swap context information (if swap was detected, even if quote fetch failed)
+    if (needsSwap) {
+      const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+      const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
+      const network = isTestnet ? "Testnet" : "Mainnet";
+      const isMainnet = !isTestnet;
+      const vvsRouter = isMainnet
+        ? (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae")
+        : (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode");
       
-      // Pattern 1: "price of X" or "price of X coin"
-      const priceOfPattern = /(?:price|cost)\s+of\s+([a-z]+)(?:\s+coin)?/i;
-      const priceOfMatch = input.match(priceOfPattern);
-      if (priceOfMatch) {
-        symbol = priceOfMatch[1];
-      } else {
-        // Pattern 2: "X price" or "current X price"
-        const pricePattern = /(?:current\s+)?([a-z]{2,10})\s+price/i;
-        const priceMatch = input.match(pricePattern);
-        if (priceMatch) {
-          symbol = priceMatch[1];
+      // Add swap information context (if not already added by parallel fetch)
+      if (!realDataContext.includes("[VVS Finance Swap Information]")) {
+        realDataContext += `\n\n[VVS Finance Swap Information]:\n`;
+        realDataContext += `Backend Network Configuration: Cronos ${network}\n`;
+        realDataContext += `VVS Router Address: ${vvsRouter}\n`;
+        realDataContext += `Swap Execution Cost: $0.15 (via x402 payment)\n`;
+        realDataContext += `Supported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n`;
+        
+        if (isMainnet) {
+          realDataContext += `\n⚠️ IMPORTANT: VVS Finance swaps are on Cronos MAINNET.\n`;
+          realDataContext += `- Backend is configured for mainnet\n`;
+          realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute swaps\n`;
         } else {
-          // Pattern 3: Direct symbol mentions (BTC, ETH, etc.)
-          const directSymbolPattern = /\b(bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|polygon|matic|doge|dogecoin|shiba|shib)\b/i;
-          const directMatch = input.match(directSymbolPattern);
-          if (directMatch) {
-            symbol = directMatch[1];
-          }
+          realDataContext += `\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n`;
         }
       }
       
-      if (symbol) {
-        // Normalize symbol (bitcoin -> BTC, ethereum -> ETH, etc.)
-        const symbolMap: Record<string, string> = {
-          "bitcoin": "BTC",
-          "btc": "BTC",
-          "ethereum": "ETH",
-          "eth": "ETH",
-          "solana": "SOL",
-          "sol": "SOL",
-          "cardano": "ADA",
-          "ada": "ADA",
-          "polygon": "MATIC",
-          "matic": "MATIC",
-          "doge": "DOGE",
-          "dogecoin": "DOGE",
-          "shiba": "SHIB",
-          "shib": "SHIB",
-        };
+      // If we got a swap quote from parallel fetch, add detailed context
+      if (swapQuoteInfo) {
+        const wantsMainnet = /mainnet|main|production/i.test(input);
+        const useMainnetForQuote = wantsMainnet || isMainnet;
         
-        const normalizedSymbol = symbolMap[symbol.toLowerCase()] || symbol.toUpperCase();
-        console.log(`[Chat] Fetching market data for ${normalizedSymbol} (extracted from: ${symbol})...`);
-        try {
-          const marketData = await fetchMarketData(normalizedSymbol);
-          if (marketData && !marketData.error) {
-            realDataContext += `\n\n[Real Market Data for ${normalizedSymbol}]:\n${JSON.stringify(marketData, null, 2)}\n`;
-            console.log(`[Chat] ✅ Market data fetched successfully`);
+        if (useMainnetForQuote) {
+          realDataContext += `\n⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.\n`;
+          realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute this swap\n`;
+          if (wantsMainnet && isTestnet) {
+            realDataContext += `- Note: You requested a mainnet quote even though backend is on testnet. Quote fetched from mainnet.\n`;
           }
-        } catch (error) {
-          console.warn(`[Chat] Failed to fetch market data:`, error);
+        } else {
+          realDataContext += `\n⚠️ NOTE: This quote is from testnet (may use mock mode).\n`;
+          realDataContext += `- For real swaps with actual liquidity, request a mainnet quote\n`;
         }
+        realDataContext += `\nSwap parameters ready: tokenIn=${swapQuoteInfo.tokenIn}, tokenOut=${swapQuoteInfo.tokenOut}, amountIn=${swapQuoteInfo.amountIn}\n`;
       }
     }
 
@@ -307,11 +679,16 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
         
         let directSDKResult: string | null = null;
         
-        // Priority 1: Try AI Agent SDK first if OPENAI_API_KEY is available
-        if (hasOpenAIKey) {
-          // If query doesn't have an address, try to use payer's address for balance queries
-          if (input.toLowerCase().includes("balance") && !input.toLowerCase().includes("0x") && verification.payerAddress) {
-            console.log(`[Chat] ℹ️ No address in balance query, using payer's address: ${verification.payerAddress}`);
+        // OPTIMIZATION: For exchange queries (get all tickers), skip AI Agent SDK and go directly to Developer Platform SDK
+        // This avoids the slow fallback chain
+        if (isExchangeQuery && !hasOpenAIKey) {
+          // Skip AI Agent SDK if not available, go straight to fallback
+          console.log(`[Chat] 📊 Exchange query detected - skipping AI Agent SDK, using Developer Platform SDK directly...`);
+        } else if (hasOpenAIKey && !isExchangeQuery) {
+          // Priority 1: Try AI Agent SDK first if OPENAI_API_KEY is available (but skip for exchange queries)
+          // If query doesn't have an address, try to use payer's address for balance/transaction queries
+          if ((input.toLowerCase().includes("balance") || input.toLowerCase().includes("transaction")) && !input.toLowerCase().includes("0x") && verification.payerAddress) {
+            console.log(`[Chat] ℹ️ No address in query, using payer's address: ${verification.payerAddress}`);
             enhancedInput = `${input} for address ${verification.payerAddress}`;
           }
           const blockchainClient = createCryptoComClient();
@@ -319,16 +696,24 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
             console.log(`[Chat] 🔗 Detected blockchain query, using Crypto.com AI Agent SDK...`);
             console.log(`[Chat] 📡 SDK Status: ACTIVE - Querying Cronos blockchain via Crypto.com AI Agent SDK`);
             try {
-              // Use enhancedInput which may include payer's address
+              // OPTIMIZATION: Add timeout to blockchain query to prevent long waits
               const blockchainQuery = enhancedInput.includes("for address") ? enhancedInput : input;
-              const blockchainResult = await executeBlockchainQuery(blockchainClient, blockchainQuery);
-              if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
+              const blockchainQueryPromise = executeBlockchainQuery(blockchainClient, blockchainQuery);
+              const timeoutPromise = new Promise<string>((resolve) => 
+                setTimeout(() => resolve("TIMEOUT"), 8000) // 8 second timeout
+              );
+              
+              const blockchainResult = await Promise.race([blockchainQueryPromise, timeoutPromise]);
+              
+              if (blockchainResult === "TIMEOUT") {
+                console.warn(`[Chat] ⚠️ Blockchain query timed out after 8s, skipping...`);
+              } else if (blockchainResult && !blockchainResult.includes("not available") && !blockchainResult.includes("Error:") && !blockchainResult.includes("Could not find") && !blockchainResult.includes("403") && !blockchainResult.includes("Forbidden")) {
                 realDataContext += `\n\n[Real Blockchain Data - Fetched via Crypto.com AI Agent SDK]:\n${blockchainResult}\n`;
                 console.log(`[Chat] ✅ Blockchain data fetched successfully via Crypto.com AI Agent SDK`);
                 console.log(`[Chat] 📊 SDK Result: ${blockchainResult.substring(0, 100)}...`);
                 directSDKResult = blockchainResult; // Mark as successful
               } else {
-                console.warn(`[Chat] ⚠️ AI Agent SDK returned error or unavailable: ${blockchainResult}`);
+                console.warn(`[Chat] ⚠️ AI Agent SDK returned error or unavailable: ${blockchainResult?.substring(0, 100)}`);
                 // Check if it's a 403 error from Explorer API - this means we should try RPC fallback
                 if (blockchainResult && (blockchainResult.includes("403") || blockchainResult.includes("Forbidden") || blockchainResult.includes("status code 403"))) {
                   console.log(`[Chat] 🔄 AI Agent SDK got 403 from Explorer API, trying RPC fallback for block queries...`);
@@ -463,143 +848,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
       }
     }
 
-    // Add swap context and execute swap quote if swap is requested
-    if (needsSwap) {
-      // Get network info from backend configuration (not frontend wallet)
-      const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
-      const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
-      const network = isTestnet ? "Testnet" : "Mainnet";
-      const isMainnet = !isTestnet;
-      const vvsRouter = isMainnet
-        ? (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae")
-        : (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode");
-      
-      realDataContext += `\n\n[VVS Finance Swap Information]:\n`;
-      realDataContext += `Backend Network Configuration: Cronos ${network}\n`;
-      realDataContext += `VVS Router Address: ${vvsRouter}\n`;
-      realDataContext += `Swap Execution Cost: $0.15 (via x402 payment)\n`;
-              realDataContext += `Supported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n`;
-      
-      if (isMainnet) {
-        realDataContext += `\n⚠️ IMPORTANT: VVS Finance swaps are on Cronos MAINNET.\n`;
-        realDataContext += `- Backend is configured for mainnet\n`;
-        realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute swaps\n`;
-        realDataContext += `- Quotes are fetched from real VVS Finance mainnet DEX\n`;
-        realDataContext += `- Real swaps will execute on mainnet\n`;
-      } else {
-        realDataContext += `\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n`;
-        realDataContext += `- Quotes may use mock mode for demonstration\n`;
-        realDataContext += `- For real swaps, switch backend to mainnet configuration\n`;
-        realDataContext += `- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n`;
-      }
-      
-      // Try to extract swap parameters and get a quote
-      try {
-        // More flexible pattern: "swap 1 CRO for USDC" or "swap 100 CRO to USDC" or "exchange 50 CRO into USDC"
-        const swapMatch = input.match(/(?:swap|exchange|trade|convert)\s+(\d+(?:\.\d+)?)\s+(\w+)\s+(?:for|to|into)\s+(\w+)/i);
-        if (swapMatch) {
-          const amountIn = swapMatch[1];
-          const tokenInSymbol = swapMatch[2].toUpperCase();
-          const tokenOutSymbol = swapMatch[3].toUpperCase();
-          
-          // Check if user explicitly requests mainnet quote (needed for network lookup)
-          const wantsMainnet = /mainnet|main|production/i.test(input);
-          
-          // Get token addresses (async - may fetch from API if not in hardcoded list)
-          const networkForLookup = wantsMainnet || isMainnet ? 'mainnet' : 'testnet';
-          const tokenInAddress = await getTokenAddress(tokenInSymbol, networkForLookup) || tokenInSymbol;
-          const tokenOutAddress = await getTokenAddress(tokenOutSymbol, networkForLookup) || tokenOutSymbol;
-          
-          console.log(`[Chat] 💱 Detected swap: ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
-          
-          // Check if user explicitly requests mainnet quote (already defined above)
-          const quoteNetwork = wantsMainnet ? "Mainnet" : network;
-          const useMainnetForQuote = wantsMainnet || isMainnet;
-          
-          // Get swap quote (free, no payment needed)
-          // If user requests mainnet or backend is on mainnet, fetch from mainnet VVS Finance
-          // Otherwise use backend's network configuration
-          try {
-            const amountInWei = ethers.parseUnits(amountIn, 18);
-            console.log(`[Chat] 💱 Fetching quote from ${quoteNetwork} VVS Finance (user requested mainnet: ${wantsMainnet}, backend is mainnet: ${isMainnet})...`);
-            
-            // Pass forceMainnet flag to getVVSQuote if user explicitly wants mainnet
-            const quote = await getVVSQuote(
-              tokenInAddress,
-              tokenOutAddress,
-              amountInWei.toString(),
-              wantsMainnet // Force mainnet if user explicitly requests it
-            );
-            
-            if (quote) {
-              // Get correct decimals for tokenOut (USDC has 6, most others have 18)
-              const tokenOutDecimals = getTokenDecimals(tokenOutAddress);
-              const amountOut = ethers.formatUnits(quote.amountOut, tokenOutDecimals);
-              realDataContext += `\n\n[Live Swap Quote - Fetched from VVS Finance ${quoteNetwork}]:\n`;
-              realDataContext += `Token Pair: ${tokenInSymbol} → ${tokenOutSymbol}\n`;
-              realDataContext += `Amount In: ${amountIn} ${tokenInSymbol}\n`;
-              realDataContext += `Expected Amount Out: ${amountOut} ${tokenOutSymbol}\n`;
-              realDataContext += `Swap Path: ${quote.path.join(" → ")}\n`;
-              realDataContext += `Quote Network: Cronos ${quoteNetwork}\n`;
-              
-              // Build swap transaction for direct signing
-              const amountInWei = ethers.parseUnits(amountIn, 18);
-              const amountOutMin = (BigInt(quote.amountOut) * 99n / 100n).toString(); // 1% slippage
-              swapTransactionData = buildVVSSwapTransaction(
-                tokenInAddress,
-                tokenOutAddress,
-                amountInWei.toString(),
-                amountOutMin,
-                verification.payerAddress || "0x0000000000000000000000000000000000000000"
-              );
-              swapQuoteInfo = {
-                amountIn,
-                tokenIn: tokenInSymbol,
-                tokenOut: tokenOutSymbol,
-                expectedAmountOut: amountOut,
-                network: quoteNetwork,
-              };
-              
-              if (useMainnetForQuote) {
-                realDataContext += `\n⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.\n`;
-                realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute this swap\n`;
-                realDataContext += `- Current quote is from real mainnet VVS Finance DEX\n`;
-                realDataContext += `- User's wallet must be on Cronos Mainnet to sign the transaction\n`;
-                realDataContext += `- Transaction data is ready - user can sign directly from chat interface\n`;
-                if (wantsMainnet && isTestnet) {
-                  realDataContext += `- Note: You requested a mainnet quote even though backend is on testnet. Quote fetched from mainnet.\n`;
-                }
-              } else {
-                realDataContext += `\n⚠️ NOTE: This quote is from testnet (may use mock mode).\n`;
-                realDataContext += `- For real swaps with actual liquidity, request a mainnet quote\n`;
-                realDataContext += `- To get mainnet quote: Ask "swap X TOKEN_A for TOKEN_B on mainnet"\n`;
-                realDataContext += `- Transaction data is ready - user can sign directly from chat interface\n`;
-              }
-              realDataContext += `\nSwap parameters ready: tokenIn=${tokenInAddress}, tokenOut=${tokenOutAddress}, amountIn=${amountIn}, recipient=${verification.payerAddress}\n`;
-              console.log(`[Chat] ✅ Swap quote fetched from ${quoteNetwork}: ${amountIn} ${tokenInSymbol} → ${amountOut} ${tokenOutSymbol}`);
-              console.log(`[Chat] ✅ Swap transaction built for direct signing`);
-            } else {
-              realDataContext += `\n\n[Swap Quote]: Could not get quote from ${quoteNetwork} - insufficient liquidity or invalid token pair.\n`;
-              if (useMainnetForQuote) {
-                realDataContext += `- This was a mainnet quote request. Try a different token pair or amount.\n`;
-              }
-              console.log(`[Chat] ⚠️ Could not get swap quote from ${quoteNetwork}`);
-            }
-          } catch (quoteError) {
-            console.warn(`[Chat] ⚠️ Failed to get swap quote from ${quoteNetwork}:`, quoteError);
-            realDataContext += `\n\n[Swap Quote]: Quote service temporarily unavailable for ${quoteNetwork}. User can try the swap directly.\n`;
-          }
-        } else {
-          realDataContext += `\n\n[Swap Detection]: Detected swap request but couldn't parse exact parameters. Please specify: "swap X TOKEN_A for TOKEN_B"\n`;
-        }
-      } catch (swapError) {
-        console.warn(`[Chat] ⚠️ Error processing swap request:`, swapError);
-      }
-      
-      // Log the actual quote network if available, otherwise backend network
-      const actualQuoteNetwork = swapQuoteInfo?.network || network;
-      console.log(`[Chat] 💱 Swap context added for ${actualQuoteNetwork}${actualQuoteNetwork !== network ? ` (quote network, backend is ${network})` : ''}`);
-    }
+    // Swap data is now fetched in parallel above - context already added
 
     // Process transfer requests using SDK's Token.transfer() (returns magic links)
     if (needsTransfer) {
@@ -717,144 +966,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
       }
     }
 
-    // Handle Portfolio Queries
-    if (needsPortfolio && verification.payerAddress) {
-      console.log(`[Chat] 💼 Portfolio query detected for address: ${verification.payerAddress}`);
-      try {
-        const { initDeveloperPlatformSDK } = require("../agent-engine/tools");
-        const sdk = initDeveloperPlatformSDK();
-        
-        if (sdk && sdk.Wallet && sdk.Token) {
-          const balances: Array<{ symbol: string; balance: string; contractAddress?: string }> = [];
-          
-          // Get native CRO balance
-          try {
-            const nativeBalance = await sdk.Wallet.balance(verification.payerAddress);
-            if (nativeBalance && nativeBalance.data && nativeBalance.data.balance) {
-              balances.push({
-                symbol: 'CRO',
-                balance: nativeBalance.data.balance
-              });
-            }
-          } catch (e) {
-            console.warn(`[Chat] ⚠️ Failed to fetch native balance:`, e);
-          }
-          
-          // Get common ERC-20 token balances (USDC, VVS, etc.)
-          const commonTokens = [
-            { address: '0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0', symbol: 'USDC' }, // USDC.e on testnet
-            { address: '0x2D03bECE6747ADC00E1A131bBA1469C15FD11E03', symbol: 'VVS' }, // VVS on testnet
-          ];
-          
-          for (const token of commonTokens) {
-            try {
-              const tokenBalance = await sdk.Token.getERC20TokenBalance(verification.payerAddress, token.address);
-              if (tokenBalance && tokenBalance.data && tokenBalance.data.balance) {
-                const balanceStr = tokenBalance.data.balance;
-                // Only include if balance > 0
-                if (parseFloat(balanceStr) > 0) {
-                  balances.push({
-                    symbol: token.symbol,
-                    balance: balanceStr,
-                    contractAddress: token.address
-                  });
-                }
-              }
-            } catch (e) {
-              // Token might not exist or have no balance - skip
-              continue;
-            }
-          }
-          
-          if (balances.length > 0) {
-            portfolioData = {
-              address: verification.payerAddress,
-              balances: balances
-            };
-            console.log(`[Chat] ✅ Portfolio data fetched: ${balances.length} tokens`);
-            realDataContext += `\n\n[Portfolio Data]:\nUser wallet: ${verification.payerAddress}\nToken balances:\n${balances.map(b => `- ${b.symbol}: ${b.balance}`).join('\n')}\n`;
-          }
-        }
-      } catch (portfolioError) {
-        console.error(`[Chat] ⚠️ Error fetching portfolio:`, portfolioError);
-      }
-    }
-
-    // Handle Transaction History Queries
-    if (needsHistory && verification.payerAddress) {
-      console.log(`[Chat] 📜 Transaction history query detected for address: ${verification.payerAddress}`);
-      try {
-        const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
-        
-        // Get transaction count (nonce) to know how many transactions exist
-        const txCount = await provider.getTransactionCount(verification.payerAddress);
-        console.log(`[Chat] ✅ Transaction count: ${txCount}`);
-        
-        // Fetch recent transactions by scanning recent blocks
-        // We'll get the last 20 blocks and check for transactions from/to this address
-        const currentBlock = await provider.getBlockNumber();
-        const txList: any[] = [];
-        const blocksToCheck = Math.min(20, currentBlock); // Check last 20 blocks (faster)
-        const addressLower = verification.payerAddress.toLowerCase();
-        
-        console.log(`[Chat] 🔍 Scanning last ${blocksToCheck} blocks for transactions...`);
-        
-        // Fetch blocks in parallel for speed
-        const blockPromises = [];
-        for (let i = 0; i < blocksToCheck; i++) {
-          blockPromises.push(provider.getBlock(currentBlock - i, true).catch(e => null));
-        }
-        
-        const blocks = await Promise.all(blockPromises);
-        
-        for (const block of blocks) {
-          if (!block || txList.length >= 10) continue;
-          
-          if (block.transactions && Array.isArray(block.transactions)) {
-            for (const txHash of block.transactions) {
-              if (txList.length >= 10) break;
-              
-              try {
-                const tx = await provider.getTransaction(txHash);
-                if (tx && tx.hash && 
-                    (tx.from?.toLowerCase() === addressLower || 
-                     tx.to?.toLowerCase() === addressLower)) {
-                  txList.push({
-                    hash: tx.hash,
-                    from: tx.from || 'N/A',
-                    to: tx.to || 'N/A',
-                    value: tx.value ? ethers.formatEther(tx.value) + ' CRO' : '0 CRO',
-                    timestamp: block.timestamp ? Number(block.timestamp) * 1000 : Date.now(),
-                    blockNumber: Number(block.number)
-                  });
-                }
-              } catch (txError) {
-                // Skip individual tx errors
-              }
-            }
-          }
-        }
-        
-        if (txList.length > 0) {
-          // Sort by block number (newest first)
-          txList.sort((a, b) => b.blockNumber - a.blockNumber);
-          
-          transactionHistory = {
-            address: verification.payerAddress,
-            transactions: txList
-          };
-          console.log(`[Chat] ✅ Transaction history fetched: ${txList.length} transactions`);
-          realDataContext += `\n\n[Transaction History]:\nUser wallet: ${verification.payerAddress}\nTotal transactions: ${txCount}\nRecent transactions found: ${txList.length}\n`;
-        } else {
-          // Even if no recent transactions found, provide the count
-          console.log(`[Chat] ℹ️ No recent transactions found in last ${blocksToCheck} blocks (total: ${txCount})`);
-          realDataContext += `\n\n[Transaction History]:\nUser wallet: ${verification.payerAddress}\nTotal transaction count: ${txCount}\nNote: No recent transactions found in last ${blocksToCheck} blocks. View full history on explorer.\n`;
-        }
-      } catch (historyError) {
-        console.error(`[Chat] ⚠️ Error fetching transaction history:`, historyError);
-      }
-    }
+    // Portfolio and transaction history are now fetched in parallel above
 
     // Get network info for system prompt (if not already set in swap context)
     const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
@@ -1008,56 +1120,56 @@ User Input:
     // We still log to database for analytics, but don't update contract metrics
     console.log(`[Chat] ℹ️  Skipping contract verification for unified chat (does not affect agent metrics)`);
 
-    // Send response immediately to user
-    res.json({
+    // Settle payment if successful
+    if (result.success) {
+      try {
+        // For unified chat: Settle directly to platform fee recipient (not escrow)
+        // This ensures unified chat revenue goes to the platform, not to any agent developer
+        await settlePayment(paymentPayload, {
+          priceUsd: agentPrice,
+          payTo: unifiedChatPayTo, // Platform fee recipient for unified chat
+          testnet: true,
+        }, paymentHeaderValue);
+        console.log(`[Chat] ✅ Payment settled directly to platform fee recipient: ${unifiedChatPayTo}`);
+        console.log(`[Chat] ℹ️  Unified chat revenue goes to platform, not to any agent developer`);
+        db.updatePayment(paymentHashBytes32, { status: "settled" });
+      } catch (settleError) {
+        console.error("[Chat] Payment settlement error:", settleError);
+        db.updatePayment(paymentHashBytes32, { status: "failed" });
+      }
+    } else {
+      db.updatePayment(paymentHashBytes32, { status: "refunded" });
+    }
+
+    const responseData: any = {
       executionId: contractExecutionId,
       output: result.output,
       success: result.success,
       payerAddress: verification.payerAddress,
-      // Include swap transaction data if available
-      ...(swapTransactionData && swapQuoteInfo && {
-        swapTransaction: swapTransactionData,
-        swapQuote: swapQuoteInfo,
-      }),
-      // Include transfer magic link if available
-      ...(transferMagicLink && {
-        transferMagicLink: transferMagicLink,
-      }),
-      // Include portfolio data if available
-      ...(portfolioData && {
-        portfolio: portfolioData,
-      }),
-      // Include transaction history if available
-      ...(transactionHistory && {
-        transactionHistory: transactionHistory,
-      }),
-    });
+    };
 
-    // Settle payment asynchronously (background task)
-    // This ensures the user gets the response immediately without waiting for blockchain settlement
-    (async () => {
-      if (result.success) {
-        try {
-          // For unified chat: Settle directly to platform fee recipient (not escrow)
-          // This ensures unified chat revenue goes to the platform, not to any agent developer
-          console.log(`[Chat] 🔄 Starting background payment settlement...`);
-          await settlePayment(paymentPayload, {
-            priceUsd: agentPrice,
-            payTo: unifiedChatPayTo, // Platform fee recipient for unified chat
-            testnet: true,
-          }, paymentHeaderValue);
-          console.log(`[Chat] ✅ Payment settled directly to platform fee recipient: ${unifiedChatPayTo}`);
-          console.log(`[Chat] ℹ️  Unified chat revenue goes to platform, not to any agent developer`);
-          db.updatePayment(paymentHashBytes32, { status: "settled" });
-        } catch (settleError) {
-          console.error("[Chat] Payment settlement error:", settleError);
-          db.updatePayment(paymentHashBytes32, { status: "failed" });
-        }
-      } else {
-        db.updatePayment(paymentHashBytes32, { status: "refunded" });
-      }
-    })().catch(err => console.error("[Chat] Background settlement task error:", err));
+    // Include swap transaction data if available
+    if (swapTransactionData && swapQuoteInfo) {
+      responseData.swapTransaction = swapTransactionData;
+      responseData.swapQuote = swapQuoteInfo;
+    }
 
+    // Include transfer magic link if available
+    if (transferMagicLink) {
+      responseData.transferMagicLink = transferMagicLink;
+    }
+
+    // Include portfolio data if available
+    if (portfolioData) {
+      responseData.portfolio = portfolioData;
+    }
+
+    // Include transaction history if available
+    if (transactionHistory) {
+      responseData.transactionHistory = transactionHistory;
+    }
+
+    res.json(responseData);
   } catch (error) {
     console.error("❌ Error in chat endpoint:", error);
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
