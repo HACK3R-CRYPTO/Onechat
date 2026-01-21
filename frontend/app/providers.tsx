@@ -1,6 +1,6 @@
 "use client";
 
-import { wagmiAdapter, projectId, cronosTestnet } from './config'
+import { wagmiAdapter, projectId, cronosTestnet, cronosMainnet } from './config'
 import { createAppKit } from '@reown/appkit/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React, { type ReactNode } from 'react'
@@ -22,7 +22,7 @@ const metadata = {
 const modal = createAppKit({
   adapters: [wagmiAdapter],
   projectId,
-  networks: [cronosTestnet],
+  networks: [cronosTestnet, cronosMainnet], // Support both testnet and mainnet
   metadata: metadata,
   features: {
     analytics: true,

@@ -502,5 +502,89 @@
     "success": true,
     "timestamp": 1768981135456,
     "verified": true
+  },
+  {
+    "executionId": 2,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xba0eb1faaca1b46d8bdf1a91e443c730c3ff242a0c8d45e7ec65832d153c7b68",
+    "input": "swap 1 CRO for USDC",
+    "output": "I cannot directly execute cryptocurrency swaps as I am an AI assistant. However, I can guide you on how to swap 1 CRO for USDC.\n\nTo perform this swap, you will typically use a Decentralized Exchange (DEX) on the Cronos network. Here's a general process:\n\n1.  **Choose a DEX**: Popular DEXs on the Cronos network include VVS Finance, Tectonic, and MMF Money.\n2.  **Connect Your Wallet**: You will need a compatible Web3 wallet (e.g., MetaMask, Crypto.com DeFi Wallet) connected to the Cronos network.\n3.  **Ensure Sufficient Funds**: Make sure you have at least 1 CRO in your wallet, plus a small amount of CRO for gas fees (transaction costs) on the Cronos network.\n4.  **Select Tokens**:\n    *   In the \"From\" or \"Pay\" field, select CRO.\n    *   In the \"To\" or \"Receive\" field, select USDC.\n5.  **Enter Amount**: Input \"1\" for CRO. The DEX will automatically calculate the equivalent amount of USDC you would receive, based on current market rates.\n6.  **Approve (if necessary)**: If this is your first time swapping CRO on that specific DEX, you might need to approve the DEX to spend your CRO. This is a separate transaction that requires a small gas fee.\n7.  **Confirm Swap**: Review the transaction details (amount, potential slippage, fees) and confirm the swap in your wallet.\n\nAlways double-check the network you are on and the tokens you are swapping to avoid losing funds.",
+    "success": true,
+    "timestamp": 1768983099150,
+    "verified": true
+  },
+  {
+    "executionId": 3,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xa2e7f3e983c3d3882fd7ab43a5bd662f3f15cecc0f33924494c02589b61d5dee",
+    "input": "swap 1 CRO for USDC on mainnet\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and other tokens on Cronos\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Swap Quote]: Could not get quote from Mainnet - insufficient liquidity or invalid token pair.\n- This was a mainnet quote request. Try a different token pair or amount.\n",
+    "output": "I understand you're trying to swap 1 CRO for USDC on the Cronos Mainnet.\n\nUnfortunately, I was unable to retrieve a quote for this specific swap on the Mainnet. The system indicated that this could be due to insufficient liquidity for the token pair or an invalid token combination at this time.\n\nPlease try a different token amount or a different token pair.\n\nRemember, for any successful swaps on the Cronos Mainnet, you will need to switch your wallet to **Cronos Mainnet (Chain ID: 25)**. Each swap execution will also cost $0.15 via x402 payment.",
+    "success": true,
+    "timestamp": 1768983784228,
+    "verified": true
+  },
+  {
+    "executionId": 4,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0x9374221b43aa5e2ed352b5f02e36b0602a1a2dbc1ac3240417da6d4e69635696",
+    "input": "swap 1 CRO for USDC on mainnet\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and other tokens on Cronos\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Live Swap Quote - Fetched from VVS Finance Mainnet]:\nToken Pair: CRO → USDC\nAmount In: 1 CRO\nExpected Amount Out: 0.000000000000090644 USDC\nSwap Path: 0x0000000000000000000000000000000000000000 → 0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0\nQuote Network: Cronos Mainnet\n\n⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.\n- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute this swap\n- Current quote is from real mainnet VVS Finance DEX\n- User's wallet must be on Cronos Mainnet to sign the transaction\n- Transaction data is ready - user can sign directly from chat interface\n- Note: You requested a mainnet quote even though backend is on testnet. Quote fetched from mainnet.\n\nSwap parameters ready: tokenIn=0x0000000000000000000000000000000000000000, tokenOut=0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0, amountIn=1, recipient=0xd2df53D9791e98Db221842Dd085F4144014BBE2a\n",
+    "output": "I have fetched a live swap quote for you from VVS Finance on the **Cronos Mainnet**.\n\nHere are the details for swapping 1 CRO for USDC:\n\n*   **Network:** Cronos Mainnet\n*   **Amount In:** 1 CRO\n*   **Expected Amount Out:** 0.000000000000090644 USDC\n*   **Swap Path:** CRO → USDC\n\n**⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.**\nTo execute this swap, you **MUST** switch your wallet to **Cronos Mainnet (Chain ID: 25)**. Your wallet must be on Cronos Mainnet to sign and confirm the transaction.\n\nExecuting this swap will cost **$0.15 via x402 payment**.\n\nThe swap parameters are ready for execution:\n`tokenIn=0x0000000000000000000000000000000000000000` (CRO), `tokenOut=0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0` (USDC), `amountIn=1`, `recipient=0xd2df53D9791e98Db221842Dd085F4144014BBE2a`\n\nTo proceed with the swap, you would use these parameters with the VVS Swap execution API endpoint.",
+    "success": true,
+    "timestamp": 1768984022426,
+    "verified": false
+  },
+  {
+    "executionId": 5,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xbd7a31d122728a19791a2fcd19d398d84f2d52e2ba17a71c65115ae901b34422",
+    "input": "swap 1 CRO for SHIB on mainnet\"\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Swap Quote]: Could not get quote from Mainnet - insufficient liquidity or invalid token pair.\n- This was a mainnet quote request. Try a different token pair or amount.\n",
+    "output": "I tried to get a mainnet quote for swapping 1 CRO for SHIB, but I was unable to retrieve it due to insufficient liquidity or an invalid token pair on the Cronos Mainnet.\n\nPlease try a different token pair or amount. If you're looking for a specific SHIB token, ensure you're using its correct contract address on Cronos Mainnet.",
+    "success": true,
+    "timestamp": 1768984738024,
+    "verified": false
+  },
+  {
+    "executionId": 6,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xc0b9c39d5d1120bc34f16c731cdb9a54741031c164e92a2445c82c982c17c09b",
+    "input": "swap 100 VVS for DAI on mainnet\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Swap Quote]: Could not get quote from Mainnet - insufficient liquidity or invalid token pair.\n- This was a mainnet quote request. Try a different token pair or amount.\n",
+    "output": "I attempted to get a Mainnet quote for swapping 100 VVS for DAI, but it appears there was an issue.\n\n**[Swap Quote Status]**\nI could not retrieve a quote for 100 VVS to DAI on Cronos Mainnet at this time. This is likely due to insufficient liquidity for this specific pair or an invalid token pair on VVS Finance Mainnet.\n\n**[Recommendation]**\nPlease try again with a different token pair or a different amount.\n\n**[Important Information for Future Swaps]**\n*   **Network**: If you wish to perform a real swap on Cronos Mainnet, you **must** switch your wallet to **Cronos Mainnet (Chain ID: 25)** to execute the transaction once a successful quote is obtained.\n*   **Cost**: Successful swap executions via our service will incur a $0.15 payment via x402.",
+    "success": true,
+    "timestamp": 1768984883999,
+    "verified": false
+  },
+  {
+    "executionId": 7,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xa9e401fc008584249d0767f04f1627cdbb49347e7aa7b580f0223d977184c169",
+    "input": "swap 0.1 ETH for WBTC on mainnet\"\n\n[Real Market Data for ETH]:\n{\n  \"symbol\": \"ETH\",\n  \"price\": \"N/A\",\n  \"price24hAgo\": \"N/A\",\n  \"change24h\": \"N/A\",\n  \"volume24h\": \"N/A\",\n  \"high24h\": \"N/A\",\n  \"low24h\": \"N/A\",\n  \"timestamp\": 1768985010890,\n  \"source\": \"Crypto.com Market Data MCP Server\",\n  \"rawData\": {\n    \"type\": \"text\",\n    \"text\": \"Here is the Crypto.com Exchange ticker {\\\"instrument_name\\\":\\\"ETH_USD\\\",\\\"high\\\":\\\"3112.87\\\",\\\"low\\\":\\\"2910.33\\\",\\\"last\\\":\\\"2956.13\\\",\\\"change\\\":\\\"-0.0429\\\",\\\"best_bid\\\":\\\"2956.12\\\",\\\"best_bid_size\\\":\\\"8.0108\\\",\\\"best_ask\\\":\\\"2956.13\\\",\\\"best_ask_size\\\":\\\"3.9369\\\",\\\"volume\\\":\\\"192539.4014\\\",\\\"volume_value\\\":\\\"580083002.97\\\",\\\"open_interest\\\":\\\"0\\\",\\\"timestamp\\\":\\\"1970-01-01T00:00:00Z\\\"}\"\n  }\n}\n\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Live Swap Quote - Fetched from VVS Finance Mainnet]:\nToken Pair: ETH → WBTC\nAmount In: 0.1 ETH\nExpected Amount Out: 0.000000000000330724 WBTC\nSwap Path: 0xe44Fd7fCb2b1581822D0c862B68222998a0c299a → 0x062E66477Faf219F25D27dCED647BF57C3107d52\nQuote Network: Cronos Mainnet\n\n⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.\n- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute this swap\n- Current quote is from real mainnet VVS Finance DEX\n- User's wallet must be on Cronos Mainnet to sign the transaction\n- Transaction data is ready - user can sign directly from chat interface\n- Note: You requested a mainnet quote even though backend is on testnet. Quote fetched from mainnet.\n\nSwap parameters ready: tokenIn=0xe44Fd7fCb2b1581822D0c862B68222998a0c299a, tokenOut=0x062E66477Faf219F25D27dCED647BF57C3107d52, amountIn=0.1, recipient=0xd2df53D9791e98Db221842Dd085F4144014BBE2a\n",
+    "output": "I can certainly help you with that swap!\n\nYou're looking to swap 0.1 ETH for WBTC on the Cronos Mainnet. I've successfully fetched a live quote for you directly from VVS Finance on the Cronos Mainnet.\n\nHere are the details for your swap:\n\n*   **Token In:** 0.1 ETH\n*   **Token Out:** WBTC\n*   **Expected Amount Out:** Approximately 0.000000000000330724 WBTC\n*   **Quote Network:** Cronos Mainnet\n\n**⚠️ Important for Execution:**\nSince this quote is from **Cronos Mainnet**, you **MUST** switch your wallet to **Cronos Mainnet (Chain ID: 25)** to successfully execute this swap. Your wallet must be on the correct network to sign the transaction.\n\nThe swap execution will cost $0.15, processed via x402 payment.\n\nTo proceed with this swap, you can use the following parameters with the VVS Swap API:\n\n`tokenIn=0xe44Fd7fCb2b1581822D0c862B68222998a0c299a`\n`tokenOut=0x062E66477Faf219F25D27dCED647BF57C3107d52`\n`amountIn=0.1`\n`recipient=0xd2df53D9791e98Db221842Dd085F4144014BBE2a`\n\nPlease ensure your wallet is connected to Cronos Mainnet before attempting to execute the transaction.",
+    "success": true,
+    "timestamp": 1768985025282,
+    "verified": true
+  },
+  {
+    "executionId": 8,
+    "agentId": 1,
+    "agentName": "Unified Chat Agent",
+    "userId": "0xd2df53D9791e98Db221842Dd085F4144014BBE2a",
+    "paymentHash": "0xf076d8d15b44ef918c3af964f0a324c123d059694b916afcfb846c7cbff5686b",
+    "input": "swap 100 VVS for DAI\n\n[VVS Finance Swap Information]:\nBackend Network Configuration: Cronos Testnet\nVVS Router Address: Not deployed on testnet - use mock mode\nSwap Execution Cost: $0.15 (via x402 payment)\nSupported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n- Quotes may use mock mode for demonstration\n- For real swaps, switch backend to mainnet configuration\n- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n\n\n[Live Swap Quote - Fetched from VVS Finance Testnet]:\nToken Pair: VVS → DAI\nAmount In: 100 VVS\nExpected Amount Out: 95.0 DAI\nSwap Path: 0x2D03bECE6747ADC00E1A131bBA1469C15FD11E03 → 0xF2001B145b43032AAF5Ee2884e456CCd805F677D\nQuote Network: Cronos Testnet\n\n\n[Swap Quote]: Quote service temporarily unavailable for Testnet. User can try the swap directly.\n",
+    "output": "I can help you with that! You're requesting to swap 100 VVS for DAI on the Cronos Testnet.\n\nHere is the live quote I fetched for you:\n\n**Swap Quote Details (Cronos Testnet - Mock Mode):**\n*   **Token Pair:** VVS → DAI\n*   **Amount In:** 100 VVS\n*   **Expected Amount Out:** 95.0 DAI\n*   **Swap Path:** 0x2D03bECE6747ADC00E1A131bBA1469C15FD11E03 → 0xF2001B145b43032AAF5Ee2884e456CCd805F677D\n*   **Network:** Cronos Testnet\n\n**Important Information:**\n*   This quote is from the **Cronos Testnet** and is provided in **mock mode** because the VVS Router is not deployed on the testnet. This means it's for demonstration purposes and does not involve real funds or actual liquidity.\n*   For a **real swap** involving actual funds, you would need to perform the transaction on **Cronos Mainnet**. If you wish to proceed with a real swap, you would need to switch your wallet to **Cronos Mainnet (Chain ID: 25)**.\n*   Executing this swap (or any swap) will cost **$0.15** via x402 payment.\n\n**If you wish to simulate this swap on Testnet (mock mode):**\nYou can use the `/api/vvs-swap/execute` endpoint with the following parameters:\n*   `amount_in`: 100\n*   `token_in_symbol`: \"VVS\"\n*   `token_out_symbol`: \"DAI\"\n*   `network`: \"testnet\"\n\nPlease let me know if you have any other questions or if you'd like a quote for a real swap on Cronos Mainnet!",
+    "success": true,
+    "timestamp": 1768985169610,
+    "verified": false
   }
 ]

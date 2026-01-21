@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { WalletConnect } from "@/components/WalletConnect";
 import { X402Payment } from "@/components/X402Payment";
 import { useQueryClient } from "@tanstack/react-query";
 import TetrisLoading from "@/components/ui/tetris-loader";
-import { Send, Bot, Loader2 } from "lucide-react";
+import { Send, Bot, Loader2, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
 import { keccak256, toBytes } from "viem";
 
@@ -15,10 +15,26 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  swapTransaction?: {
+    to: string;
+    data: string;
+    value?: string;
+  };
+  swapQuote?: {
+    amountIn: string;
+    tokenIn: string;
+    tokenOut: string;
+    expectedAmountOut: string;
+    network: string;
+  };
 }
 
 export default function ChatPage() {
   const { address, isConnected } = useAccount();
+  const { writeContract, data: swapTxHash, isPending: isSwapPending } = useWriteContract();
+  const { isLoading: isSwapConfirming, isSuccess: isSwapConfirmed } = useWaitForTransactionReceipt({
+    hash: swapTxHash,
+  });
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -143,12 +159,14 @@ export default function ChatPage() {
 
       const data = await response.json();
 
-      // Add assistant response
+      // Add assistant response with swap transaction data if available
       const assistantMessage: Message = {
         id: `msg_${Date.now() + 1}`,
         role: "assistant",
         content: data.output || "No response received",
         timestamp: Date.now(),
+        swapTransaction: data.swapTransaction || undefined,
+        swapQuote: data.swapQuote || undefined,
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
@@ -217,6 +235,27 @@ export default function ChatPage() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const executeSwap = async (swapTx: { to: string; data: string; value?: string }) => {
+    if (!isConnected || !address) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      const contractParams: any = {
+        to: swapTx.to as `0x${string}`,
+        data: swapTx.data as `0x${string}`,
+      };
+      if (swapTx.value) {
+        contractParams.value = BigInt(swapTx.value);
+      }
+      await writeContract(contractParams);
+    } catch (error) {
+      console.error("Error executing swap:", error);
+      alert(error instanceof Error ? error.message : "Failed to execute swap");
     }
   };
 
@@ -305,6 +344,58 @@ export default function ChatPage() {
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">
                     {message.content}
                   </p>
+                  {message.swapTransaction && message.swapQuote && (
+                    <div className="mt-4 p-4 bg-green-900/20 border border-green-800 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <ArrowRightLeft className="h-4 w-4 text-green-400" />
+                        <span className="text-sm font-semibold text-green-300">Swap Ready</span>
+                      </div>
+                      <div className="text-xs text-neutral-300 space-y-1 mb-3">
+                        <p>
+                          <span className="text-neutral-400">Swap:</span> {message.swapQuote.amountIn} {message.swapQuote.tokenIn} → ~{message.swapQuote.expectedAmountOut} {message.swapQuote.tokenOut}
+                        </p>
+                        <p>
+                          <span className="text-neutral-400">Network:</span> Cronos {message.swapQuote.network}
+                        </p>
+                        {message.swapQuote.network === "Mainnet" && (
+                          <p className="text-yellow-400 text-xs mt-2">
+                            ⚠️ Make sure your wallet is on Cronos Mainnet (Chain ID: 25)
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => executeSwap(message.swapTransaction!)}
+                        disabled={isSwapPending || isSwapConfirming}
+                        className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-neutral-800 disabled:to-neutral-800 disabled:opacity-50 text-white rounded-lg font-medium transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isSwapPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Signing...</span>
+                          </>
+                        ) : isSwapConfirming ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Confirming...</span>
+                          </>
+                        ) : isSwapConfirmed ? (
+                          <>
+                            <span>✅ Swap Executed</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRightLeft className="h-4 w-4" />
+                            <span>Sign & Execute Swap</span>
+                          </>
+                        )}
+                      </button>
+                      {swapTxHash && (
+                        <p className="text-xs text-neutral-400 mt-2 text-center">
+                          TX: {swapTxHash.slice(0, 10)}...{swapTxHash.slice(-8)}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-neutral-500 mt-2">
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </p>

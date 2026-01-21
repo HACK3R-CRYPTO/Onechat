@@ -33,8 +33,36 @@ export const cronosTestnet = defineChain({
   testnet: true,
 })
 
-// Create Reown AppKit Wagmi adapter
+// Define Cronos Mainnet network
+export const cronosMainnet = defineChain({
+  id: 25,
+  name: 'Cronos',
+  network: 'cronos',
+  nativeCurrency: {
+    name: 'Cronos',
+    symbol: 'CRO',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_CRONOS_MAINNET_RPC_URL || 'https://evm.cronos.org'],
+    },
+    public: {
+      http: ['https://evm.cronos.org'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Cronoscan',
+      url: 'https://cronoscan.com',
+    },
+  },
+  testnet: false,
+})
+
+// Create Reown AppKit Wagmi adapter with both networks
+// Users can switch between testnet and mainnet in their wallet
 export const wagmiAdapter = new WagmiAdapter({
-  networks: [cronosTestnet],
+  networks: [cronosTestnet, cronosMainnet],
   projectId,
 })

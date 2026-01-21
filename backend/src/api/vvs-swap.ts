@@ -35,9 +35,12 @@ router.post("/quote", async (req: Request, res: Response) => {
       });
     }
 
-    // Get token addresses
-    const tokenInAddress = getTokenAddress(tokenIn) || tokenIn;
-    const tokenOutAddress = getTokenAddress(tokenOut) || tokenOut;
+    // Get token addresses (async - may fetch from API if not in hardcoded list)
+    const cronosRpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
+    const isTestnet = cronosRpcUrl.includes("evm-t3") || cronosRpcUrl.includes("testnet");
+    const networkForLookup = isTestnet ? 'testnet' : 'mainnet';
+    const tokenInAddress = await getTokenAddress(tokenIn, networkForLookup) || tokenIn;
+    const tokenOutAddress = await getTokenAddress(tokenOut, networkForLookup) || tokenOut;
 
     // Parse amount
     const amountInWei = ethers.parseUnits(amountIn, 18);
@@ -99,6 +102,7 @@ router.post("/execute", async (req: Request, res: Response) => {
     const isTestnet = cronosRpcUrl.includes("evm-t3") || cronosRpcUrl.includes("testnet");
     const isMainnet = !isTestnet;
     const mockMode = process.env.VVS_MOCK_MODE === "true";
+    const networkForLookup = isTestnet ? 'testnet' : 'mainnet';
     
     // Skip payment ONLY if:
     // 1. On testnet AND (mock mode enabled OR no real router address)
@@ -159,9 +163,10 @@ router.post("/execute", async (req: Request, res: Response) => {
       });
     }
 
-    // Get token addresses
-    const tokenInAddress = getTokenAddress(tokenIn) || tokenIn;
-    const tokenOutAddress = getTokenAddress(tokenOut) || tokenOut;
+    // Get token addresses (async - may fetch from API if not in hardcoded list)
+    // networkForLookup is already defined above
+    const tokenInAddress = await getTokenAddress(tokenIn, networkForLookup) || tokenIn;
+    const tokenOutAddress = await getTokenAddress(tokenOut, networkForLookup) || tokenOut;
 
     // Parse amounts
     const amountInWei = ethers.parseUnits(amountIn, 18);

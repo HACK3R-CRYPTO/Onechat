@@ -7,7 +7,7 @@ import { db } from "../lib/database";
 import { ethers } from "ethers";
 import { determineAgentTools, fetchMarketData, executeBlockchainQuery, createCryptoComClient } from "../agent-engine/tools";
 import { releasePaymentToDeveloper } from "../lib/contract";
-import { getVVSQuote, getTokenAddress } from "../lib/vvs-finance";
+import { getVVSQuote, getTokenAddress, buildVVSSwapTransaction, getTokenDecimals } from "../lib/vvs-finance";
 
 const router = Router();
 
@@ -120,7 +120,14 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
     // Detect intent
     const needsMarketData = /(?:price|price of|current price|what's the price|how much is|trading at|market|volume|bitcoin|btc|ethereum|eth|crypto)/i.test(input);
     const needsBlockchain = /(?:balance|transaction|block|address|contract|on-chain|blockchain|wallet|0x[a-fA-F0-9]{40})/i.test(input);
-    const needsSwap = /(?:swap|exchange|trade|convert|vvs|dex).*?(?:token|coin|crypto)/i.test(input);
+    // Detect swap requests: "swap 1 CRO for USDC", "exchange 100 CRO to USDC", etc.
+    const needsSwap = /(?:swap|exchange|trade|convert|vvs|dex)\s+\d+.*?(?:for|to|into)/i.test(input);
+    let swapTransactionData: { to: string; data: string; value?: string } | null = null;
+    let swapQuoteInfo: { amountIn: string; tokenIn: string; tokenOut: string; expectedAmountOut: string; network: string } | null = null;
+    
+    if (needsSwap) {
+      console.log(`[Chat] 💱 Swap request detected in input: "${input}"`);
+    }
     const needsContractAnalysis = /(?:contract|solidity|pragma|function|analyze|audit|vulnerability|security|bug)/i.test(input);
     const needsContent = /(?:create|generate|write|tweet|post|content|marketing|copy)/i.test(input);
 
@@ -243,64 +250,129 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
 
     // Add swap context and execute swap quote if swap is requested
     if (needsSwap) {
-      // Get network info for swap context
+      // Get network info from backend configuration (not frontend wallet)
       const rpcUrl = process.env.CRONOS_RPC_URL || "https://evm-t3.cronos.org";
       const isTestnet = rpcUrl.includes("evm-t3") || rpcUrl.includes("testnet");
       const network = isTestnet ? "Testnet" : "Mainnet";
-      const vvsRouter = isTestnet 
-        ? (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode")
-        : (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae");
+      const isMainnet = !isTestnet;
+      const vvsRouter = isMainnet
+        ? (process.env.VVS_ROUTER_ADDRESS || "0x145863Eb42Cf62847A6Ca784e6416C1682b1b2Ae")
+        : (process.env.VVS_ROUTER_ADDRESS_TESTNET || "Not deployed on testnet - use mock mode");
       
       realDataContext += `\n\n[VVS Finance Swap Information]:\n`;
-      realDataContext += `Network: Cronos ${network}\n`;
+      realDataContext += `Backend Network Configuration: Cronos ${network}\n`;
       realDataContext += `VVS Router Address: ${vvsRouter}\n`;
       realDataContext += `Swap Execution Cost: $0.15 (via x402 payment)\n`;
-      realDataContext += `Supported Tokens: CRO, USDC, VVS, and other tokens on Cronos\n`;
-      if (isTestnet) {
-        realDataContext += `Note: VVS Finance may use mock mode on testnet for demonstration\n`;
+              realDataContext += `Supported Tokens: CRO, USDC, VVS, and any token address on Cronos (users can provide contract addresses)\n`;
+      
+      if (isMainnet) {
+        realDataContext += `\n⚠️ IMPORTANT: VVS Finance swaps are on Cronos MAINNET.\n`;
+        realDataContext += `- Backend is configured for mainnet\n`;
+        realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute swaps\n`;
+        realDataContext += `- Quotes are fetched from real VVS Finance mainnet DEX\n`;
+        realDataContext += `- Real swaps will execute on mainnet\n`;
       } else {
-        realDataContext += `Note: Real swaps execute on VVS Finance Mainnet\n`;
+        realDataContext += `\n⚠️ NOTE: Backend is on testnet, but VVS Finance is primarily on mainnet.\n`;
+        realDataContext += `- Quotes may use mock mode for demonstration\n`;
+        realDataContext += `- For real swaps, switch backend to mainnet configuration\n`;
+        realDataContext += `- User should switch wallet to Cronos Mainnet (Chain ID: 25) for real swaps\n`;
       }
       
       // Try to extract swap parameters and get a quote
       try {
+        // More flexible pattern: "swap 1 CRO for USDC" or "swap 100 CRO to USDC" or "exchange 50 CRO into USDC"
         const swapMatch = input.match(/(?:swap|exchange|trade|convert)\s+(\d+(?:\.\d+)?)\s+(\w+)\s+(?:for|to|into)\s+(\w+)/i);
         if (swapMatch) {
           const amountIn = swapMatch[1];
           const tokenInSymbol = swapMatch[2].toUpperCase();
           const tokenOutSymbol = swapMatch[3].toUpperCase();
           
-          const tokenInAddress = getTokenAddress(tokenInSymbol) || tokenInSymbol;
-          const tokenOutAddress = getTokenAddress(tokenOutSymbol) || tokenOutSymbol;
+          // Check if user explicitly requests mainnet quote (needed for network lookup)
+          const wantsMainnet = /mainnet|main|production/i.test(input);
+          
+          // Get token addresses (async - may fetch from API if not in hardcoded list)
+          const networkForLookup = wantsMainnet || isMainnet ? 'mainnet' : 'testnet';
+          const tokenInAddress = await getTokenAddress(tokenInSymbol, networkForLookup) || tokenInSymbol;
+          const tokenOutAddress = await getTokenAddress(tokenOutSymbol, networkForLookup) || tokenOutSymbol;
           
           console.log(`[Chat] 💱 Detected swap: ${amountIn} ${tokenInSymbol} → ${tokenOutSymbol}`);
           
+          // Check if user explicitly requests mainnet quote (already defined above)
+          const quoteNetwork = wantsMainnet ? "Mainnet" : network;
+          const useMainnetForQuote = wantsMainnet || isMainnet;
+          
           // Get swap quote (free, no payment needed)
+          // If user requests mainnet or backend is on mainnet, fetch from mainnet VVS Finance
+          // Otherwise use backend's network configuration
           try {
             const amountInWei = ethers.parseUnits(amountIn, 18);
+            console.log(`[Chat] 💱 Fetching quote from ${quoteNetwork} VVS Finance (user requested mainnet: ${wantsMainnet}, backend is mainnet: ${isMainnet})...`);
+            
+            // Pass forceMainnet flag to getVVSQuote if user explicitly wants mainnet
             const quote = await getVVSQuote(
               tokenInAddress,
               tokenOutAddress,
-              amountInWei.toString()
+              amountInWei.toString(),
+              wantsMainnet // Force mainnet if user explicitly requests it
             );
             
             if (quote) {
-              const amountOut = ethers.formatUnits(quote.amountOut, 18);
-              realDataContext += `\n\n[Live Swap Quote - Fetched from VVS Finance]:\n`;
+              // Get correct decimals for tokenOut (USDC has 6, most others have 18)
+              const tokenOutDecimals = getTokenDecimals(tokenOutAddress);
+              const amountOut = ethers.formatUnits(quote.amountOut, tokenOutDecimals);
+              realDataContext += `\n\n[Live Swap Quote - Fetched from VVS Finance ${quoteNetwork}]:\n`;
               realDataContext += `Token Pair: ${tokenInSymbol} → ${tokenOutSymbol}\n`;
               realDataContext += `Amount In: ${amountIn} ${tokenInSymbol}\n`;
               realDataContext += `Expected Amount Out: ${amountOut} ${tokenOutSymbol}\n`;
               realDataContext += `Swap Path: ${quote.path.join(" → ")}\n`;
-              realDataContext += `\nTo execute this swap, the user needs to call /api/vvs-swap/execute with x402 payment ($0.15).\n`;
-              realDataContext += `Swap parameters ready: tokenIn=${tokenInAddress}, tokenOut=${tokenOutAddress}, amountIn=${amountIn}, recipient=${verification.payerAddress}\n`;
-              console.log(`[Chat] ✅ Swap quote fetched: ${amountIn} ${tokenInSymbol} → ${amountOut} ${tokenOutSymbol}`);
+              realDataContext += `Quote Network: Cronos ${quoteNetwork}\n`;
+              
+              // Build swap transaction for direct signing
+              const amountInWei = ethers.parseUnits(amountIn, 18);
+              const amountOutMin = (BigInt(quote.amountOut) * 99n / 100n).toString(); // 1% slippage
+              swapTransactionData = buildVVSSwapTransaction(
+                tokenInAddress,
+                tokenOutAddress,
+                amountInWei.toString(),
+                amountOutMin,
+                verification.payerAddress || "0x0000000000000000000000000000000000000000"
+              );
+              swapQuoteInfo = {
+                amountIn,
+                tokenIn: tokenInSymbol,
+                tokenOut: tokenOutSymbol,
+                expectedAmountOut: amountOut,
+                network: quoteNetwork,
+              };
+              
+              if (useMainnetForQuote) {
+                realDataContext += `\n⚠️ IMPORTANT: This quote is from Cronos MAINNET VVS Finance.\n`;
+                realDataContext += `- User MUST switch their wallet to Cronos Mainnet (Chain ID: 25) to execute this swap\n`;
+                realDataContext += `- Current quote is from real mainnet VVS Finance DEX\n`;
+                realDataContext += `- User's wallet must be on Cronos Mainnet to sign the transaction\n`;
+                realDataContext += `- Transaction data is ready - user can sign directly from chat interface\n`;
+                if (wantsMainnet && isTestnet) {
+                  realDataContext += `- Note: You requested a mainnet quote even though backend is on testnet. Quote fetched from mainnet.\n`;
+                }
+              } else {
+                realDataContext += `\n⚠️ NOTE: This quote is from testnet (may use mock mode).\n`;
+                realDataContext += `- For real swaps with actual liquidity, request a mainnet quote\n`;
+                realDataContext += `- To get mainnet quote: Ask "swap X TOKEN_A for TOKEN_B on mainnet"\n`;
+                realDataContext += `- Transaction data is ready - user can sign directly from chat interface\n`;
+              }
+              realDataContext += `\nSwap parameters ready: tokenIn=${tokenInAddress}, tokenOut=${tokenOutAddress}, amountIn=${amountIn}, recipient=${verification.payerAddress}\n`;
+              console.log(`[Chat] ✅ Swap quote fetched from ${quoteNetwork}: ${amountIn} ${tokenInSymbol} → ${amountOut} ${tokenOutSymbol}`);
+              console.log(`[Chat] ✅ Swap transaction built for direct signing`);
             } else {
-              realDataContext += `\n\n[Swap Quote]: Could not get quote - insufficient liquidity or invalid token pair.\n`;
-              console.log(`[Chat] ⚠️ Could not get swap quote`);
+              realDataContext += `\n\n[Swap Quote]: Could not get quote from ${quoteNetwork} - insufficient liquidity or invalid token pair.\n`;
+              if (useMainnetForQuote) {
+                realDataContext += `- This was a mainnet quote request. Try a different token pair or amount.\n`;
+              }
+              console.log(`[Chat] ⚠️ Could not get swap quote from ${quoteNetwork}`);
             }
           } catch (quoteError) {
-            console.warn(`[Chat] ⚠️ Failed to get swap quote:`, quoteError);
-            realDataContext += `\n\n[Swap Quote]: Quote service temporarily unavailable. User can try the swap directly.\n`;
+            console.warn(`[Chat] ⚠️ Failed to get swap quote from ${quoteNetwork}:`, quoteError);
+            realDataContext += `\n\n[Swap Quote]: Quote service temporarily unavailable for ${quoteNetwork}. User can try the swap directly.\n`;
           }
         } else {
           realDataContext += `\n\n[Swap Detection]: Detected swap request but couldn't parse exact parameters. Please specify: "swap X TOKEN_A for TOKEN_B"\n`;
@@ -339,21 +411,31 @@ ${needsSwap ? `- **Token Swaps**: You can help users swap tokens on VVS Finance 
 
 ${needsSwap ? `## Token Swap Instructions (VVS Finance):
 When users ask about token swaps:
-1. **Network**: Current network is Cronos ${network}
+1. **Network Detection**: Backend is configured for Cronos ${network}
 2. **VVS Router**: ${vvsRouter}
 3. **Agent-Driven Workflow**: 
    - I automatically detect swap requests and extract parameters (amount, tokens)
-   - I fetch live swap quotes from VVS Finance DEX
+   - I can fetch quotes from either mainnet or testnet based on user request or backend config
+   - If user says "on mainnet" or "mainnet quote", fetch from mainnet VVS Finance (even if backend is on testnet)
+   - Otherwise, use backend's network configuration
    - I provide the quote and swap details to the user
    - Swaps require x402 payment ($0.15 per swap execution via /api/vvs-swap/execute)
-4. **Response Format**: 
-   - If I have a live quote: Show the exact quote with amounts and path
+4. **Network Requirements**: 
+   - Users can request mainnet quotes even if their wallet is on testnet
+   - If quote is from mainnet: User MUST switch wallet to Cronos Mainnet (Chain ID: 25) to execute
+   - If quote is from testnet: May use mock mode, inform user about mainnet for real swaps
+   - Always clearly state which network the quote is from
+5. **Response Format**: 
+   - If I have a live quote: Show the exact quote with amounts, path, and network
+   - Clearly state which network the quote is from (Mainnet/Testnet)
+   - If mainnet quote: Warn user they need to switch wallet to mainnet (Chain ID: 25)
    - Explain the swap will cost $0.15 via x402 payment
    - Provide the swap parameters ready for execution
    - Guide users to execute via the swap API endpoint
-${isTestnet ? "5. **Note**: VVS Finance may use mock mode on testnet for demonstration purposes\n" : "5. **Note**: Real swaps execute on VVS Finance Mainnet\n"}
-6. **Example**: If user says "swap 100 CRO for USDC":
-   - I show: "I've fetched a live quote from VVS Finance: 100 CRO → ~X USDC. To execute, call /api/vvs-swap/execute with x402 payment ($0.15). Swap parameters: tokenIn=..., tokenOut=..., amountIn=100, recipient=YOUR_ADDRESS"
+6. **Examples**: 
+   - "swap 100 CRO for USDC" → Use backend's network (testnet or mainnet)
+   - "swap 100 CRO for USDC on mainnet" → Fetch from mainnet VVS Finance, warn about wallet switch
+   - "get mainnet quote for 50 CRO to USDC" → Fetch mainnet quote regardless of backend config
 
 ` : ""}
 ## Response Format:
@@ -506,6 +588,11 @@ User Input:
       output: result.output,
       success: result.success,
       payerAddress: verification.payerAddress,
+      // Include swap transaction data if available
+      ...(swapTransactionData && swapQuoteInfo && {
+        swapTransaction: swapTransactionData,
+        swapQuote: swapQuoteInfo,
+      }),
     });
   } catch (error) {
     console.error("❌ Error in chat endpoint:", error);
