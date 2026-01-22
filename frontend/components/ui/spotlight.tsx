@@ -1,56 +1,115 @@
-import React from "react";
-import { cn } from "@/lib/utils";
+'use client';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { motion, useSpring, useTransform, SpringOptions } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 type SpotlightProps = {
   className?: string;
-  fill?: string;
+  size?: number;
+  springOptions?: SpringOptions;
 };
 
-export const Spotlight = ({ className, fill }: SpotlightProps) => {
+export function Spotlight({
+  className,
+  size = 300,
+  springOptions = { stiffness: 150, damping: 15, mass: 0.1 },
+}: SpotlightProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [parentElement, setParentElement] = useState<HTMLElement | null>(null);
+
+  const mouseX = useSpring(0, springOptions);
+  const mouseY = useSpring(0, springOptions);
+
+  const spotlightLeft = useTransform(mouseX, (x) => `${x - size / 2}px`);
+  const spotlightTop = useTransform(mouseY, (y) => `${y - size / 2}px`);
+
+  useEffect(() => {
+    // Use a timeout to ensure DOM is ready
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        // Find the parent element (should be the Card)
+        let parent = containerRef.current.parentElement;
+        
+        // If wrapped in a div, go up one more level
+        if (parent && parent.classList.contains('absolute')) {
+          parent = parent.parentElement;
+        }
+        
+        // Traverse up to find the element with relative positioning
+        while (parent && parent !== document.body) {
+          const computedStyle = window.getComputedStyle(parent);
+          // Check if it has relative positioning (the Card should have this)
+          if (computedStyle.position === 'relative' || 
+              computedStyle.position === 'absolute' ||
+              parent.classList.contains('relative')) {
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        
+        if (parent) {
+          // Ensure parent has required styles
+          parent.style.position = 'relative';
+          parent.style.overflow = 'hidden';
+          setParentElement(parent);
+        }
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (event: MouseEvent) => {
+      if (!parentElement) return;
+      const rect = parentElement.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      mouseX.set(x);
+      mouseY.set(y);
+    },
+    [mouseX, mouseY, parentElement]
+  );
+
+  useEffect(() => {
+    if (!parentElement) {
+      console.warn('[Spotlight] No parent element, cannot attach event listeners');
+      return;
+    }
+
+    console.log('[Spotlight] Attaching event listeners to parent');
+
+    const handleMouseEnter = () => setIsHovered(true);
+    const handleMouseLeave = () => setIsHovered(false);
+
+    parentElement.addEventListener('mousemove', handleMouseMove);
+    parentElement.addEventListener('mouseenter', handleMouseEnter);
+    parentElement.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      parentElement.removeEventListener('mousemove', handleMouseMove);
+      parentElement.removeEventListener('mouseenter', handleMouseEnter);
+      parentElement.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [parentElement, handleMouseMove]);
+
   return (
-    <svg
+    <motion.div
+      ref={containerRef}
       className={cn(
-        "animate-spotlight pointer-events-none absolute z-[1]  h-[169%] w-[138%] lg:w-[84%] opacity-0",
+        'pointer-events-none absolute rounded-full blur-3xl',
         className
       )}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 3787 2842"
-      fill="none"
-    >
-      <g filter="url(#filter)">
-        <ellipse
-          cx="1924.71"
-          cy="273.501"
-          rx="1924.71"
-          ry="273.501"
-          transform="matrix(-0.822377 -0.568943 -0.568943 0.822377 3631.88 2291.09)"
-          fill={fill || "white"}
-          fillOpacity="0.21"
-        ></ellipse>
-      </g>
-      <defs>
-        <filter
-          id="filter"
-          x="0.860352"
-          y="0.838989"
-          width="3785.16"
-          height="2840.26"
-          filterUnits="userSpaceOnUse"
-          colorInterpolationFilters="sRGB"
-        >
-          <feFlood floodOpacity="0" result="BackgroundImageFix"></feFlood>
-          <feBlend
-            mode="normal"
-            in="SourceGraphic"
-            in2="BackgroundImageFix"
-            result="shape"
-          ></feBlend>
-          <feGaussianBlur
-            stdDeviation="151"
-            result="effect1_foregroundBlur_1065_8"
-          ></feGaussianBlur>
-        </filter>
-      </defs>
-    </svg>
+      style={{
+        width: size,
+        height: size,
+        left: spotlightLeft,
+        top: spotlightTop,
+        background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 30%, rgba(255,255,255,0.1) 50%, transparent 80%)',
+        opacity: isHovered ? 1 : 0,
+        transition: 'opacity 0.3s ease',
+      }}
+    />
   );
-};
+}

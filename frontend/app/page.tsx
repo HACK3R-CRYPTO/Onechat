@@ -162,7 +162,7 @@ export default function Home() {
                 OneChat
               </h1>
               <p className="text-sm text-neutral-400 mt-1">
-                One Chat. Multiple Superpowers.
+                First Web3-native AI agent marketplace on Cronos
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -190,10 +190,13 @@ export default function Home() {
             <div>
               <h2 className="text-2xl font-bold mb-2">Unified Chat Interface</h2>
               <p className="text-neutral-300 mb-1">
-                Ask anything - I automatically use the right tools
+                Ask anything in plain English - system automatically routes to the right tools
               </p>
-              <p className="text-sm text-neutral-400">
-                Market data • Blockchain queries • Contract analysis • Content generation
+              <p className="text-sm text-neutral-400 mb-2">
+                Market data • Blockchain queries • Contract analysis • Content generation • VVS swaps
+              </p>
+              <p className="text-xs text-neutral-500">
+                Powered by Crypto.com Market Data MCP Server, AI Agent SDK, and x402 micropayments ($0.10 per message)
               </p>
             </div>
             <a
@@ -206,35 +209,41 @@ export default function Home() {
           </div>
         </div>
 
-        {/* VVS Swap CTA */}
-        <div className="mb-8 p-6 bg-gradient-to-br from-green-900/20 to-emerald-900/20 rounded-lg border border-green-800/50">
+        {/* Individual Agents CTA */}
+        <div className="mb-8 p-6 bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-800/50">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold mb-2">VVS Finance Token Swap</h2>
+              <h2 className="text-2xl font-bold mb-2">Individual AI Agents Marketplace</h2>
               <p className="text-neutral-300 mb-1">
-                Swap tokens on VVS Finance DEX via x402 payments - Use the chat agent!
+                Browse specialized agents registered on-chain. Execute directly. Developers earn 90% revenue.
               </p>
-              <p className="text-sm text-neutral-400">
-                CRO • USDC • VVS • Crypto.com Integration • AI-Powered Swaps
+              <p className="text-sm text-neutral-400 mb-2">
+                Smart Contract Analyzer • Market Data Agent • Content Generator • Portfolio Analyzer
+              </p>
+              <p className="text-xs text-neutral-500">
+                  First agent marketplace with on-chain registry and x402 micropayments on Cronos
               </p>
             </div>
             <a
-              href="/chat"
-              className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-green-500/20 flex items-center gap-2"
+              href="#agents"
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-purple-500/20 flex items-center gap-2"
             >
               <Bot className="h-5 w-5" />
-              Chat for Swaps
+              Browse Agents
             </a>
           </div>
         </div>
 
         {/* Section Header */}
-        <div className="mb-6 md:mb-8">
+        <div id="agents" className="mb-6 md:mb-8 scroll-mt-8">
           <h2 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400 mb-2">
-            Individual Agents
+            Individual Agents Marketplace
           </h2>
-          <p className="text-sm md:text-base text-neutral-400 mb-4">
-            Or select a specialized agent for specific tasks
+          <p className="text-sm md:text-base text-neutral-400 mb-2">
+            Browse specialized AI agents registered on Cronos blockchain. All agents tracked on-chain with transparent metrics.
+          </p>
+          <p className="text-xs text-neutral-500 mb-4">
+            Each agent execution requires x402 payment. Developers earn 90% of payment, platform takes 10% fee. All automatic, all transparent.
           </p>
 
           {/* Search and Filter */}
@@ -293,16 +302,18 @@ export default function Home() {
               
               <div className="flex justify-between items-center mb-4 pb-4 border-b border-neutral-800">
                 <div>
-                  <div className="text-xs text-neutral-500 mb-1">Price</div>
+                  <div className="text-xs text-neutral-500 mb-1">Price (x402)</div>
                   <div className="text-lg font-bold text-neutral-50">
                     ${agent.price}
                   </div>
+                  <div className="text-xs text-neutral-500 mt-0.5">per execution</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500 mb-1">Reputation</div>
                   <div className="text-lg font-bold text-neutral-50">
                     {agent.reputation}/1000
                   </div>
+                  <div className="text-xs text-neutral-500 mt-0.5">on-chain</div>
                 </div>
               </div>
               
