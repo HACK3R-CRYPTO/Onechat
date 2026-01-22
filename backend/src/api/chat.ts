@@ -740,7 +740,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
             contractAddress = allAddresses[allAddresses.length - 1]; // Last address is likely the contract
           } else if (allAddresses && allAddresses.length === 1) {
             // Single address - could be wallet or contract, but if it's not the payer's address, assume it's a contract
-            if (allAddresses[0].toLowerCase() !== verification.payerAddress.toLowerCase()) {
+            if (verification && verification.payerAddress && allAddresses[0].toLowerCase() !== verification.payerAddress.toLowerCase()) {
               contractAddress = allAddresses[0];
             }
           }
@@ -762,7 +762,7 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
         
         // If contract address is explicitly provided, use it
         if (contractAddress) {
-          if (!balanceQuery.includes(verification.payerAddress)) {
+          if (verification && verification.payerAddress && !balanceQuery.includes(verification.payerAddress)) {
             balanceQuery = `${input} address ${verification.payerAddress} contract ${contractAddress}`;
           } else if (!balanceQuery.includes(contractAddress)) {
             // Wallet address already in query, just add contract
@@ -771,12 +771,12 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
           console.log(`[Chat] ℹ️ Using provided contract address: ${contractAddress}`);
         } 
         // If no contract address but token name is mentioned, use known contract
-        else if (!contractAddress && tokenName && knownTokens[tokenName] && !balanceQuery.includes(verification.payerAddress)) {
+        else if (!contractAddress && tokenName && knownTokens[tokenName] && verification && verification.payerAddress && !balanceQuery.includes(verification.payerAddress)) {
           balanceQuery = `${input} address ${verification.payerAddress} contract ${knownTokens[tokenName]}`;
           console.log(`[Chat] ℹ️ Using known contract for ${tokenName.toUpperCase()}: ${knownTokens[tokenName]}`);
         }
         // If no contract address provided, add wallet address (SDK will return native balance or ask for contract)
-        else if (!balanceQuery.includes(verification.payerAddress)) {
+        else if (verification && verification.payerAddress && !balanceQuery.includes(verification.payerAddress)) {
           balanceQuery = `${input} address ${verification.payerAddress}`;
         }
         
@@ -1067,14 +1067,19 @@ router.post("/", chatRateLimit, validateAgentInputMiddleware, async (req: Reques
                   amount: parseFloat(amount)
                 });
               } else if (contractAddress) {
-                console.log(`[Chat] 💸 Calling Token.transfer() for ERC-20 token`);
-                console.log(`[Chat] 💸 Transfer params:`, { to: toAddress, amount: parseFloat(amount), contractAddress });
-                transferResponse = await sdk.Token.transfer({
-                  to: toAddress,
-                  amount: parseFloat(amount),
-                  contractAddress: contractAddress
-                });
-              } else {
+          console.log(`[Chat] 💸 Calling Token.transfer() for ERC-20 token`);
+          
+          // Following SDK documentation in tokensdk.md: use raw human-readable amount as a number
+          const transferAmount = Number(amount);
+
+          console.log(`[Chat] 💸 Transfer params:`, { to: toAddress, amount: transferAmount, contractAddress });
+          
+          transferResponse = await sdk.Token.transfer({
+            to: toAddress,
+            amount: transferAmount, 
+            contractAddress: contractAddress
+          });
+        } else {
                 console.warn(`[Chat] ⚠️ ERC-20 transfer requires contract address`);
                 // Will be handled by agent response
               }

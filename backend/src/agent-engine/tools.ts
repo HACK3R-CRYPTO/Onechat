@@ -1948,9 +1948,14 @@ async function buildTransferTransactionViaSDK(query: string): Promise<string> {
       console.log(`[Transfer] Calling Token.transfer() for ERC-20 token (may need contract address)...`);
       
       if (contractAddress) {
+        // Following SDK documentation in tokensdk.md: use raw human-readable amount as a number
+        const transferAmount = Number(amount);
+
+        console.log(`[Transfer] 💸 Calling Token.transfer() with params:`, { to: toAddress, amount: transferAmount, contractAddress });
+
         transferResponse = await Token.transfer({
           to: toAddress,
-          amount: amount,
+          amount: transferAmount,
           contractAddress: contractAddress
         });
       } else {
